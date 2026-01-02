@@ -109,6 +109,11 @@ class PalletTrackerApp {
     
     // ============ ПРОВЕРКА ПАЛЛЕТОВ ============
     startPalletCheck() {
+        console.log('Начало проверки паллета:', {
+            isWorkingDay: this.isWorkingDay,
+            currentPalletCheck: this.currentPalletCheck
+        });
+        
         if (!this.isWorkingDay) {
             this.showNotification('Сначала начните рабочий день!', 'error');
             return;
@@ -138,6 +143,7 @@ class PalletTrackerApp {
         
         document.getElementById('palletCode').value = '';
         this.updateCurrentCheckDisplay();
+        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок
         this.showNotification(`Проверка паллета ${code} начата`, 'success');
     }
     
@@ -165,12 +171,21 @@ class PalletTrackerApp {
             productDetails.style.display = 'block';
         } else {
             productDetails.style.display = 'none';
+            // Очистить поля товара
+            document.getElementById('productPLU').value = '';
+            document.getElementById('productName').value = '';
+            document.getElementById('productQuantity').value = '';
         }
     }
     
     addError() {
         const errorType = document.querySelector('input[name="errorType"]:checked').value;
         const comment = document.getElementById('errorComment').value.trim();
+        
+        if (!comment) {
+            this.showNotification('Введите комментарий', 'error');
+            return;
+        }
         
         const errorData = {
             type: errorType,
@@ -222,7 +237,7 @@ class PalletTrackerApp {
         // Добавить обработчики для кнопок удаления
         document.querySelectorAll('.remove-error').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.dataset.index);
+                const index = parseInt(e.target.closest('.remove-error').dataset.index);
                 this.tempErrors.splice(index, 1);
                 this.updateAddedErrorsList();
             });
@@ -285,6 +300,9 @@ class PalletTrackerApp {
         this.currentPalletCheck = null;
         this.tempErrors = [];
         this.updateCurrentCheckDisplay();
+        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок после завершения
+        
+        this.showNotification('Проверка паллета завершена', 'success');
     }
     
     // ============ ОТОБРАЖЕНИЕ ДАННЫХ ============
@@ -292,8 +310,9 @@ class PalletTrackerApp {
         this.updateWorkTimeDisplay();
         this.updatePalletCounter();
         this.updateProgressBar();
-        this.updateButtonStates();
+        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок
         this.updateTodayChecksTable();
+        this.updateCurrentCheckDisplay();
     }
     
     updateWorkTimeDisplay() {
@@ -357,16 +376,56 @@ class PalletTrackerApp {
         const startCheckBtn = document.getElementById('startPalletCheck');
         const endCheckBtn = document.getElementById('endPalletCheck');
         
+        // Отладка
+        console.log('Состояние для обновления кнопок:', {
+            isWorkingDay: this.isWorkingDay,
+            hasCurrentCheck: !!this.currentPalletCheck,
+            currentCheck: this.currentPalletCheck
+        });
+        
+        // Блокируем кнопку "Начать рабочий день", если день уже начат
         startWorkBtn.disabled = this.isWorkingDay;
+        
+        // Блокируем кнопку "Конец рабочего дня", если день не начат
         endWorkBtn.disabled = !this.isWorkingDay;
+        
+        // Блокируем кнопку "Начать проверку паллета", если:
+        // 1. Рабочий день не начат ИЛИ
+        // 2. Уже есть активная проверка
         startCheckBtn.disabled = !this.isWorkingDay || this.currentPalletCheck !== null;
-        endCheckBtn.disabled = !this.currentPalletCheck;
+        
+        // Блокируем кнопку "Завершить проверку паллета", если нет активной проверки
+        endCheckBtn.disabled = this.currentPalletCheck === null;
+        
+        // Визуальная обратная связь
+        if (startCheckBtn.disabled) {
+            startCheckBtn.title = this.isWorkingDay ? 
+                'Завершите текущую проверку' : 
+                'Сначала начните рабочий день';
+        } else {
+            startCheckBtn.title = 'Начать проверку выбранного паллета';
+        }
+        
+        if (endCheckBtn.disabled) {
+            endCheckBtn.title = 'Нет активной проверки';
+        } else {
+            endCheckBtn.title = 'Завершить текущую проверку паллета';
+        }
+        
+        // Отладка состояния кнопок
+        console.log('Состояние кнопок:', {
+            startCheckBtn: startCheckBtn.disabled ? 'disabled' : 'enabled',
+            endCheckBtn: endCheckBtn.disabled ? 'disabled' : 'enabled',
+            reason: this.currentPalletCheck === null ? 'Нет активной проверки' : 'Есть активная проверка'
+        });
     }
     
     enablePalletControls() {
         document.getElementById('startPalletCheck').disabled = false;
+        document.getElementById('endPalletCheck').disabled = true;
         document.getElementById('startWorkDay').disabled = true;
         document.getElementById('endWorkDay').disabled = false;
+        this.updateButtonStates();
     }
     
     disablePalletControls() {
@@ -374,10 +433,12 @@ class PalletTrackerApp {
         document.getElementById('endPalletCheck').disabled = true;
         document.getElementById('startWorkDay').disabled = false;
         document.getElementById('endWorkDay').disabled = true;
+        this.updateButtonStates();
     }
     
     enableEndWorkDay() {
         document.getElementById('endWorkDay').disabled = false;
+        this.updateButtonStates();
     }
     
     // ============ ТАБЛИЦА СЕГОДНЯШНИХ ПРОВЕРОК ============
@@ -642,7 +703,7 @@ class PalletTrackerApp {
                         <div class="error-details">
                 `;
                 
-                if (error.type in ["недостача", "излишки", "качество товара"]) {
+                if (['недостача', 'излишки', 'качество товара'].includes(error.type)) {
                     if (error.productName) {
                         errorsHtml += `<p><strong>Товар:</strong> ${error.productName}</p>`;
                     }
@@ -652,13 +713,13 @@ class PalletTrackerApp {
                     if (error.quantity) {
                         errorsHtml += `<p><strong>Количество:</strong> ${error.quantity}${error.unit || ''}</p>`;
                     }
-                } else if (error.type in ["высота паллета", "не предоставлен паллет"]) {
+                } else if (['высота паллета', 'не предоставлен паллет'].includes(error.type)) {
                     if (error.comment) {
                         errorsHtml += `<p>${error.comment}</p>`;
                     }
                 }
                 
-                if (error.comment && !(["высота паллета", "не предоставлен паллет"].includes(error.type) && error.comment)) {
+                if (error.comment && !(['высота паллета', 'не предоставлен паллет'].includes(error.type) && error.comment)) {
                     errorsHtml += `<p><strong>Комментарий:</strong> ${error.comment}</p>`;
                 }
                 
@@ -732,7 +793,12 @@ class PalletTrackerApp {
             workStartTime: this.workStartTime ? this.workStartTime.toISOString() : null,
             workEndTime: this.workEndTime ? this.workEndTime.toISOString() : null,
             palletsChecked: this.palletsChecked,
-            isWorkingDay: this.isWorkingDay
+            isWorkingDay: this.isWorkingDay,
+            currentPalletCheck: this.currentPalletCheck ? {
+                ...this.currentPalletCheck,
+                start: this.currentPalletCheck.start.toISOString(),
+                end: this.currentPalletCheck.end ? this.currentPalletCheck.end.toISOString() : null
+            } : null
         };
         
         localStorage.setItem('palletTrackerData', JSON.stringify(data));
@@ -759,6 +825,15 @@ class PalletTrackerApp {
             this.palletsChecked = data.palletsChecked || 0;
             this.isWorkingDay = data.isWorkingDay || false;
             
+            // Восстанавливаем текущую проверку
+            if (data.currentPalletCheck) {
+                this.currentPalletCheck = {
+                    ...data.currentPalletCheck,
+                    start: new Date(data.currentPalletCheck.start),
+                    end: data.currentPalletCheck.end ? new Date(data.currentPalletCheck.end) : null
+                };
+            }
+            
             // Проверяем, не закончился ли рабочий день (если прошло больше 12 часов)
             if (this.isWorkingDay && this.workStartTime) {
                 const hoursSinceStart = (new Date() - this.workStartTime) / 1000 / 60 / 60;
@@ -772,6 +847,7 @@ class PalletTrackerApp {
             console.error('Ошибка загрузки данных:', error);
             this.allDaysHistory = {};
             this.todayChecks = [];
+            this.currentPalletCheck = null;
         }
     }
     
@@ -807,4 +883,5 @@ class PalletTrackerApp {
 // Запуск приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new PalletTrackerApp();
+    console.log('Приложение Pallet Tracker запущено');
 });
