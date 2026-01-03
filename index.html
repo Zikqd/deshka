@@ -47,23 +47,29 @@
                 </div>
             </div>
 
-            <div class="pallet-controls">
-                <div class="input-group">
-                    <label for="palletCode"><i class="fas fa-barcode"></i> D-код паллета:</label>
-                    <input type="text" id="palletCode" placeholder="Например: D40505050" maxlength="20">
-                </div>
-                
-                <div class="button-group">
-                    <button id="startPalletCheck" class="btn btn-primary" disabled>
-                        <i class="fas fa-play-circle"></i> Начать проверку паллета
-                    </button>
-                    <button id="endPalletCheck" class="btn btn-danger" disabled>
-                        <i class="fas fa-check-circle"></i> Завершить проверку паллета
-                    </button>
-                </div>
-                
-                <div class="current-check" id="currentCheckDisplay"></div>
-            </div>
+<div class="pallet-controls">
+    <div class="input-group">
+        <label for="palletCode"><i class="fas fa-barcode"></i> D-код паллета:</label>
+        <input type="text" id="palletCode" placeholder="Например: D40505050" maxlength="20">
+    </div>
+    
+    <!-- ДОБАВЛЯЕМ НОВОЕ ПОЛЕ ДЛЯ КОЛИЧЕСТВА КОРОБОВ -->
+    <div class="input-group">
+        <label for="boxCount"><i class="fas fa-box"></i> Количество коробов:</label>
+        <input type="number" id="boxCount" placeholder="0" min="0" max="999" value="0">
+    </div>
+    
+    <div class="button-group">
+        <button id="startPalletCheck" class="btn btn-primary" disabled>
+            <i class="fas fa-play-circle"></i> Начать проверку паллета
+        </button>
+        <button id="endPalletCheck" class="btn btn-danger" disabled>
+            <i class="fas fa-check-circle"></i> Завершить проверку паллета
+        </button>
+    </div>
+    
+    <div class="current-check" id="currentCheckDisplay"></div>
+</div>
         </section>
 
         <!-- Сегодняшние проверки -->
