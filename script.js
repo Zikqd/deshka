@@ -36,7 +36,7 @@ class PalletTrackerApp {
     setupEventListeners() {
         // Кнопки рабочего времени
         document.getElementById('startWorkDay').addEventListener('click', () => this.startWorkDay());
-        document.getElementById('endWorkDay').addEventListener('click', () => this.endWorkDay());
+        document.getElementById('endWorkDay').addEventListener('click', () => this.showEndWorkDayModal());
         document.getElementById('showHistory').addEventListener('click', () => this.showHistory());
         document.getElementById('saveData').addEventListener('click', () => this.saveToStorage());
         
@@ -67,6 +67,9 @@ class PalletTrackerApp {
         document.getElementById('closeViewErrors').addEventListener('click', () => this.hideModal('viewErrorsModal'));
         document.getElementById('closeHistory').addEventListener('click', () => this.hideModal('historyModal'));
         document.getElementById('closeDayDetails').addEventListener('click', () => this.hideModal('dayDetailsModal'));
+        document.getElementById('closeConfirmModal').addEventListener('click', () => this.hideModal('confirmModal'));
+        document.getElementById('confirmYes').addEventListener('click', () => this.confirmAction());
+        document.getElementById('confirmNo').addEventListener('click', () => this.hideModal('confirmModal'));
         
         // Клик по фону для закрытия модальных окон
         document.querySelectorAll('.modal').forEach(modal => {
@@ -76,10 +79,34 @@ class PalletTrackerApp {
         });
     }
     
+    // ============ МОДАЛЬНЫЕ ОКНА ПОДТВЕРЖДЕНИЯ ============
+    showConfirmModal(message, callback) {
+        document.getElementById('confirmMessage').textContent = message;
+        document.getElementById('confirmModal').classList.add('active');
+        this.pendingConfirmCallback = callback;
+    }
+    
+    confirmAction() {
+        if (this.pendingConfirmCallback) {
+            this.pendingConfirmCallback();
+        }
+        this.hideModal('confirmModal');
+        this.pendingConfirmCallback = null;
+    }
+    
+    showEndWorkDayModal() {
+        if (this.palletsChecked < this.totalPalletsToCheck) {
+            this.showConfirmModal(
+                `Проверено только ${this.palletsChecked} из ${this.totalPalletsToCheck} паллетов. Завершить рабочий день?`,
+                () => this.endWorkDay()
+            );
+        } else {
+            this.showConfirmModal('Завершить рабочий день?', () => this.endWorkDay());
+        }
+    }
+    
     // ============ РАБОЧИЙ ДЕНЬ ============
     startWorkDay() {
-        if (!confirm('Начать рабочий день?')) return;
-        
         this.workStartTime = new Date();
         this.isWorkingDay = true;
         this.palletsChecked = 0;
@@ -92,12 +119,6 @@ class PalletTrackerApp {
     }
     
     endWorkDay() {
-        if (this.palletsChecked < this.totalPalletsToCheck) {
-            if (!confirm(`Проверено только ${this.palletsChecked} из ${this.totalPalletsToCheck} паллетов. Завершить рабочий день?`)) {
-                return;
-            }
-        }
-        
         this.workEndTime = new Date();
         this.isWorkingDay = false;
         
@@ -131,20 +152,21 @@ class PalletTrackerApp {
             return;
         }
         
-        if (!confirm(`Начать проверку паллета:\n${code}?`)) return;
-        
-        this.currentPalletCheck = {
-            code: code,
-            start: new Date(),
-            end: null,
-            duration: null,
-            errors: []
-        };
-        
-        document.getElementById('palletCode').value = '';
-        this.updateCurrentCheckDisplay();
-        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок
-        this.showNotification(`Проверка паллета ${code} начата`, 'success');
+        // Показываем модальное окно вместо confirm()
+        this.showConfirmModal(`Начать проверку паллета:\n${code}?`, () => {
+            this.currentPalletCheck = {
+                code: code,
+                start: new Date(),
+                end: null,
+                duration: null,
+                errors: []
+            };
+            
+            document.getElementById('palletCode').value = '';
+            this.updateCurrentCheckDisplay();
+            this.updateButtonStates();
+            this.showNotification(`Проверка паллета ${code} начата`, 'success');
+        });
     }
     
     askAboutErrors() {
@@ -254,11 +276,11 @@ class PalletTrackerApp {
     }
     
     cancelErrors() {
-        if (confirm('Отменить добавление ошибок?')) {
+        this.showConfirmModal('Отменить добавление ошибок?', () => {
             this.tempErrors = [];
             this.hideModal('errorDetailsModal');
             this.askAboutErrors();
-        }
+        });
     }
     
     endPalletCheckWithErrors(errors) {
@@ -282,6 +304,7 @@ class PalletTrackerApp {
         this.updateTodayChecksTable();
         this.updateDisplay();
         
+        // Вместо alert() показываем уведомление
         let message = `Паллет ${this.currentPalletCheck.code} проверен!\n`;
         message += `Длительность: ${this.currentPalletCheck.duration}\n`;
         message += `Проверено: ${this.palletsChecked}/${this.totalPalletsToCheck}`;
@@ -291,18 +314,16 @@ class PalletTrackerApp {
         }
         
         if (this.palletsChecked === this.totalPalletsToCheck) {
-            message += '\n\n✅ Все 15 паллетов проверены!';
+            message += '\n✅ Все 15 паллетов проверены!';
             this.enableEndWorkDay();
         }
         
-        alert(message);
+        this.showNotification(message, 'success');
         
         this.currentPalletCheck = null;
         this.tempErrors = [];
         this.updateCurrentCheckDisplay();
-        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок после завершения
-        
-        this.showNotification('Проверка паллета завершена', 'success');
+        this.updateButtonStates();
     }
     
     // ============ ОТОБРАЖЕНИЕ ДАННЫХ ============
@@ -310,7 +331,7 @@ class PalletTrackerApp {
         this.updateWorkTimeDisplay();
         this.updatePalletCounter();
         this.updateProgressBar();
-        this.updateButtonStates(); // ВАЖНО: обновляем состояние кнопок
+        this.updateButtonStates();
         this.updateTodayChecksTable();
         this.updateCurrentCheckDisplay();
     }
@@ -376,13 +397,6 @@ class PalletTrackerApp {
         const startCheckBtn = document.getElementById('startPalletCheck');
         const endCheckBtn = document.getElementById('endPalletCheck');
         
-        // Отладка
-        console.log('Состояние для обновления кнопок:', {
-            isWorkingDay: this.isWorkingDay,
-            hasCurrentCheck: !!this.currentPalletCheck,
-            currentCheck: this.currentPalletCheck
-        });
-        
         // Блокируем кнопку "Начать рабочий день", если день уже начат
         startWorkBtn.disabled = this.isWorkingDay;
         
@@ -396,28 +410,6 @@ class PalletTrackerApp {
         
         // Блокируем кнопку "Завершить проверку паллета", если нет активной проверки
         endCheckBtn.disabled = this.currentPalletCheck === null;
-        
-        // Визуальная обратная связь
-        if (startCheckBtn.disabled) {
-            startCheckBtn.title = this.isWorkingDay ? 
-                'Завершите текущую проверку' : 
-                'Сначала начните рабочий день';
-        } else {
-            startCheckBtn.title = 'Начать проверку выбранного паллета';
-        }
-        
-        if (endCheckBtn.disabled) {
-            endCheckBtn.title = 'Нет активной проверки';
-        } else {
-            endCheckBtn.title = 'Завершить текущую проверку паллета';
-        }
-        
-        // Отладка состояния кнопок
-        console.log('Состояние кнопок:', {
-            startCheckBtn: startCheckBtn.disabled ? 'disabled' : 'enabled',
-            endCheckBtn: endCheckBtn.disabled ? 'disabled' : 'enabled',
-            reason: this.currentPalletCheck === null ? 'Нет активной проверки' : 'Есть активная проверка'
-        });
     }
     
     enablePalletControls() {
