@@ -585,3 +585,37 @@ textarea {
         text-align: center;
     }
 }
+/* Обновление стилей уведомлений для многострочных сообщений */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    transform: translateX(150%);
+    transition: transform 0.3s ease;
+    z-index: 1001;
+    max-width: 400px;
+    word-wrap: break-word;
+    white-space: pre-line; /* Важно: сохраняет переносы строк */
+    line-height: 1.4;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+/* Остальные стили остаются такими же */
+.notification.success {
+    background: linear-gradient(135deg, #48bb78 0%, #2f855a 100%);
+}
+
+.notification.error {
+    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+}
+
+.notification.info {
+    background: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
+}
