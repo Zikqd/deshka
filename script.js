@@ -11,6 +11,11 @@ class PalletTrackerApp {
         this.allDaysHistory = {};
         this.tempErrors = [];
         this.pendingConfirmCallback = null;
+        this.todayStats = {
+            totalPallets: 0,
+            totalBoxes: 0,
+            totalErrors: 0
+        };
         
         this.init();
     }
@@ -21,6 +26,7 @@ class PalletTrackerApp {
         this.loadFromStorage();
         this.updateDisplay();
         this.updateErrorFormVisibility();
+        this.updateTodayStats();
     }
     
     setupDate() {
@@ -77,6 +83,7 @@ class PalletTrackerApp {
         document.getElementById('closeConfirmModal').addEventListener('click', () => this.hideModal('confirmModal'));
         document.getElementById('confirmYes').addEventListener('click', () => this.confirmAction());
         document.getElementById('confirmNo').addEventListener('click', () => this.hideModal('confirmModal'));
+        document.getElementById('closePalletStats').addEventListener('click', () => this.hideModal('palletStatsModal'));
         
         // Обработчик клавиши Escape
         document.addEventListener('keydown', (e) => {
@@ -134,6 +141,11 @@ class PalletTrackerApp {
         this.todayChecks = [];
         this.tempErrors = [];
         this.currentPalletCheck = null;
+        this.todayStats = {
+            totalPallets: 0,
+            totalBoxes: 0,
+            totalErrors: 0
+        };
         
         this.updateDisplay();
         this.enablePalletControls();
@@ -165,15 +177,31 @@ class PalletTrackerApp {
         const code = document.getElementById('palletCode').value.trim().toUpperCase();
         const boxCount = parseInt(document.getElementById('boxCount').value) || 0;
         
-        // Проверяем, что введен D-код ИЛИ количество коробов > 0
+        // Проверка на обязательное количество коробов
+        if (boxCount <= 0) {
+            this.showNotification('Введите количество коробов (минимум 1)!', 'error');
+            document.getElementById('boxCount').focus();
+            return;
+        }
+        
+        // Проверка на дублирование D-кода
         if (code) {
+            // Проверяем валидность D-кода
             if (!code.startsWith('D') || code.length < 2 || !/^D\d+$/.test(code)) {
                 this.showNotification('Неверный формат D-кода! Пример: D40505050', 'error');
                 return;
             }
-        } else if (boxCount <= 0) {
-            this.showNotification('Введите D-код ИЛИ количество коробов больше 0!', 'error');
-            return;
+            
+            // Проверяем, не проверялся ли уже этот паллет сегодня
+            const isDuplicate = this.todayChecks.some(check => check.code === code);
+            if (isDuplicate) {
+                this.showNotification(`Паллет ${code} уже проверен сегодня!`, 'error');
+                document.getElementById('palletCode').focus();
+                return;
+            }
+        } else {
+            // Если D-кода нет, генерируем уникальный код
+            const uniqueId = `PLT-${Date.now().toString().slice(-6)}`;
         }
         
         if (this.currentPalletCheck) {
@@ -192,16 +220,13 @@ class PalletTrackerApp {
             confirmMessage = `Начать проверку без D-кода`;
         }
         
-        if (boxCount > 0) {
-            confirmMessage += `\nКоличество коробов: ${boxCount}`;
-        }
-        
+        confirmMessage += `\nКоличество коробов: ${boxCount}`;
         confirmMessage += '?';
         
         // Показываем модальное окно вместо confirm()
         this.showConfirmModal(confirmMessage, () => {
             this.currentPalletCheck = {
-                code: code || 'Без D-кода',
+                code: code || `Без D-кода-${Date.now().toString().slice(-4)}`,
                 boxCount: boxCount,
                 start: new Date(),
                 end: null,
@@ -211,7 +236,7 @@ class PalletTrackerApp {
             
             // Очищаем поля ввода
             document.getElementById('palletCode').value = '';
-            document.getElementById('boxCount').value = '0';
+            document.getElementById('boxCount').value = '';
             
             this.updateCurrentCheckDisplay();
             this.updateButtonStates();
@@ -369,14 +394,14 @@ class PalletTrackerApp {
         this.todayChecks.push({...this.currentPalletCheck});
         this.palletsChecked++;
         
+        // Обновляем статистику
+        this.updateTodayStats();
         this.updateTodayChecksTable();
         this.updateDisplay();
         
         // Формируем сообщение
         let message = `Паллет ${this.currentPalletCheck.code} проверен!\n`;
-        if (this.currentPalletCheck.boxCount > 0) {
-            message += `Коробов: ${this.currentPalletCheck.boxCount}\n`;
-        }
+        message += `Коробов: ${this.currentPalletCheck.boxCount}\n`;
         message += `Длительность: ${this.currentPalletCheck.duration}\n`;
         message += `Проверено: ${this.palletsChecked}/${this.totalPalletsToCheck}`;
         
@@ -399,6 +424,17 @@ class PalletTrackerApp {
         
         // Сбрасываем форму ошибок
         this.resetErrorForm();
+    }
+    
+    // ============ СТАТИСТИКА ============
+    updateTodayStats() {
+        this.todayStats.totalPallets = this.todayChecks.length;
+        this.todayStats.totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+        this.todayStats.totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
+        
+        document.getElementById('totalPallets').textContent = this.todayStats.totalPallets;
+        document.getElementById('totalBoxes').textContent = this.todayStats.totalBoxes;
+        document.getElementById('totalErrors').textContent = this.todayStats.totalErrors;
     }
     
     // ============ ОТОБРАЖЕНИЕ ДАННЫХ ============
@@ -462,7 +498,7 @@ class PalletTrackerApp {
                 Проверяется: ${this.currentPalletCheck.code} (начато в ${startStr})
             `;
             
-            // Добавляем информацию о количестве коробов, если есть
+            // Добавляем информацию о количестве коробов
             if (this.currentPalletCheck.boxCount > 0) {
                 displayText += `<br><i class="fas fa-box"></i> Коробов: ${this.currentPalletCheck.boxCount}`;
             }
@@ -526,15 +562,10 @@ class PalletTrackerApp {
             const endStr = this.formatTime(check.end);
             const hasErrors = check.errors && check.errors.length > 0;
             
-            // Формируем информацию о паллете
-            let palletInfo = `<strong>${check.code}</strong>`;
-            if (check.boxCount > 0) {
-                palletInfo += `<br><small>Коробов: ${check.boxCount}</small>`;
-            }
-            
             row.innerHTML = `
                 <td>${index + 1}</td>
-                <td>${palletInfo}</td>
+                <td><strong>${check.code}</strong></td>
+                <td>${check.boxCount || 0}</td>
                 <td>${startStr}</td>
                 <td>${endStr}</td>
                 <td>${check.duration}</td>
@@ -544,25 +575,106 @@ class PalletTrackerApp {
                     </span>
                 </td>
                 <td>
-                    ${hasErrors ? 
-                        `<button class="btn btn-small btn-primary view-errors-btn" data-index="${index}">
-                            <i class="fas fa-eye"></i> Просмотреть
-                        </button>` : 
-                        '-'
-                    }
+                    <button class="btn btn-small btn-info view-stats-btn" data-index="${index}">
+                        <i class="fas fa-chart-bar"></i> Статистика
+                    </button>
                 </td>
             `;
             
             tbody.appendChild(row);
         });
         
-        // Добавить обработчики для кнопок просмотра ошибок
-        document.querySelectorAll('.view-errors-btn').forEach(btn => {
+        // Добавить обработчики для кнопок просмотра статистики
+        document.querySelectorAll('.view-stats-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.closest('.view-errors-btn').dataset.index);
-                this.showPalletErrors(index);
+                const index = parseInt(e.target.closest('.view-stats-btn').dataset.index);
+                this.showPalletStats(index);
             });
         });
+    }
+    
+    showPalletStats(index) {
+        const check = this.todayChecks[index];
+        
+        document.getElementById('palletStatsTitle').textContent = 
+            `Статистика паллета ${check.code} (№${index + 1})`;
+        
+        const statsInfo = document.getElementById('palletStatsInfo');
+        const errorsList = document.getElementById('palletErrorsList');
+        
+        // Формируем статистику
+        const startTime = new Date(check.start);
+        const endTime = new Date(check.end);
+        
+        const startStr = startTime.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const endStr = endTime.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        statsInfo.innerHTML = `
+            <p><strong>D-код:</strong> ${check.code}</p>
+            <p><strong>Количество коробов:</strong> ${check.boxCount || 0}</p>
+            <p><strong>Начало проверки:</strong> ${startStr}</p>
+            <p><strong>Окончание проверки:</strong> ${endStr}</p>
+            <p><strong>Длительность:</strong> ${check.duration}</p>
+            <p><strong>Количество ошибок:</strong> ${check.errors ? check.errors.length : 0}</p>
+        `;
+        
+        // Формируем список ошибок
+        if (!check.errors || check.errors.length === 0) {
+            errorsList.innerHTML = `
+                <div class="error-item">
+                    <h4>✅ Ошибок не обнаружено</h4>
+                </div>
+            `;
+        } else {
+            let errorsHtml = '';
+            
+            check.errors.forEach((error, i) => {
+                errorsHtml += `
+                    <div class="error-item">
+                        <h4>${i + 1}. ${error.type}</h4>
+                        <div class="error-details">
+                `;
+                
+                if (['недостача', 'излишки', 'качество товара'].includes(error.type)) {
+                    if (error.productName) {
+                        errorsHtml += `<p><strong>Товар:</strong> ${error.productName}</p>`;
+                    }
+                    if (error.plu) {
+                        errorsHtml += `<p><strong>PLU:</strong> ${error.plu}</p>`;
+                    }
+                    if (error.quantity) {
+                        errorsHtml += `<p><strong>Количество:</strong> ${error.quantity}${error.unit || ''}</p>`;
+                    }
+                } else if (['высота паллета', 'не предоставлен паллет'].includes(error.type)) {
+                    if (error.comment) {
+                        errorsHtml += `<p>${error.comment}</p>`;
+                    }
+                }
+                
+                if (error.comment && !(['высота паллета', 'не предоставлен паллет'].includes(error.type) && error.comment)) {
+                    errorsHtml += `<p><strong>Комментарий:</strong> ${error.comment}</p>`;
+                }
+                
+                errorsHtml += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            errorsList.innerHTML = errorsHtml;
+        }
+        
+        // Показываем модальное окно поверх всех
+        this.showModal('palletStatsModal');
     }
     
     // ============ ИСТОРИЯ ============
@@ -598,6 +710,12 @@ class PalletTrackerApp {
                 let endStr = '-';
                 let totalTime = '-';
                 let pallets = dayData.pallets_checked || 0;
+                let totalBoxes = 0;
+                
+                // Считаем общее количество коробов за день
+                if (dayData.checks) {
+                    totalBoxes = dayData.checks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+                }
                 
                 if (dayData.work_end) {
                     const endTime = new Date(dayData.work_end);
@@ -618,6 +736,7 @@ class PalletTrackerApp {
                     <td>${startStr}</td>
                     <td>${endStr}</td>
                     <td>${pallets}</td>
+                    <td>${totalBoxes}</td>
                     <td>${totalTime}</td>
                     <td>
                         <button class="btn btn-small btn-primary view-day-btn" data-date="${dateStr}">
@@ -687,7 +806,12 @@ class PalletTrackerApp {
                 infoHtml += `<p><strong>Время работы:</strong> ${hours}ч ${minutes}м</p>`;
             }
             
+            const totalBoxes = dayData.checks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+            const totalErrors = dayData.checks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
+            
             infoHtml += `<p><strong>Паллетов проверено:</strong> ${dayData.pallets_checked || 0}</p>`;
+            infoHtml += `<p><strong>Коробов всего:</strong> ${totalBoxes}</p>`;
+            infoHtml += `<p><strong>Ошибок всего:</strong> ${totalErrors}</p>`;
         }
         
         dayInfo.innerHTML = infoHtml;
@@ -712,16 +836,11 @@ class PalletTrackerApp {
             
             const hasErrors = check.errors && check.errors.length > 0;
             
-            // Формируем информацию о паллете
-            let palletInfo = `<strong>${check.code}</strong>`;
-            if (check.boxCount > 0) {
-                palletInfo += `<br><small>Коробов: ${check.boxCount}</small>`;
-            }
-            
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index + 1}</td>
-                <td>${palletInfo}</td>
+                <td><strong>${check.code}</strong></td>
+                <td>${check.boxCount || 0}</td>
                 <td>${startStr}</td>
                 <td>${endStr}</td>
                 <td>${check.duration}</td>
@@ -758,11 +877,6 @@ class PalletTrackerApp {
     }
     
     // ============ ПОКАЗ ОШИБОК ============
-    showPalletErrors(index) {
-        const check = this.todayChecks[index];
-        this.showPalletErrorsModal(check, index + 1);
-    }
-    
     showPalletErrorsFromHistory(check, number) {
         this.showPalletErrorsModal(check, number, true);
     }
@@ -817,7 +931,7 @@ class PalletTrackerApp {
             
             errorsHtml += `<p><strong>Всего ошибок:</strong> ${check.errors.length}</p>`;
             
-            // Добавляем информацию о количестве коробов, если есть
+            // Добавляем информацию о количестве коробов
             if (check.boxCount > 0) {
                 errorsHtml += `<p><strong>Количество коробов:</strong> ${check.boxCount}</p>`;
             }
@@ -847,14 +961,9 @@ class PalletTrackerApp {
                     <p><strong>Начало:</strong> ${startStr}</p>
                     <p><strong>Окончание:</strong> ${endStr}</p>
                     <p><strong>Длительность:</strong> ${check.duration}</p>
+                    <p><strong>Количество коробов:</strong> ${check.boxCount || 0}</p>
+                </div>
             `;
-            
-            // Добавляем количество коробов
-            if (check.boxCount > 0) {
-                timeInfo += `<p><strong>Количество коробов:</strong> ${check.boxCount}</p>`;
-            }
-            
-            timeInfo += `</div>`;
             
             container.insertAdjacentHTML('afterbegin', timeInfo);
         }
@@ -896,7 +1005,8 @@ class PalletTrackerApp {
                 ...this.currentPalletCheck,
                 start: this.currentPalletCheck.start.toISOString(),
                 end: this.currentPalletCheck.end ? this.currentPalletCheck.end.toISOString() : null
-            } : null
+            } : null,
+            todayStats: this.todayStats
         };
         
         localStorage.setItem('palletTrackerData', JSON.stringify(data));
@@ -916,7 +1026,7 @@ class PalletTrackerApp {
                 try {
                     return {
                         ...check,
-                        boxCount: check.boxCount || 0, // Добавляем boxCount если его нет
+                        boxCount: check.boxCount || 0,
                         start: check.start ? new Date(check.start) : new Date(),
                         end: check.end ? new Date(check.end) : null
                     };
@@ -935,18 +1045,23 @@ class PalletTrackerApp {
             this.workEndTime = data.workEndTime ? new Date(data.workEndTime) : null;
             this.palletsChecked = data.palletsChecked || 0;
             this.isWorkingDay = data.isWorkingDay || false;
+            this.todayStats = data.todayStats || {
+                totalPallets: 0,
+                totalBoxes: 0,
+                totalErrors: 0
+            };
             
             // Восстанавливаем текущую проверку
             if (data.currentPalletCheck) {
                 this.currentPalletCheck = {
                     ...data.currentPalletCheck,
-                    boxCount: data.currentPalletCheck.boxCount || 0, // Добавляем boxCount
+                    boxCount: data.currentPalletCheck.boxCount || 0,
                     start: new Date(data.currentPalletCheck.start),
                     end: data.currentPalletCheck.end ? new Date(data.currentPalletCheck.end) : null
                 };
             }
             
-            // Проверяем, не закончился ли рабочий день (если прошло больше 12 часов)
+            // Проверяем, не закончился ли рабочий день
             if (this.isWorkingDay && this.workStartTime) {
                 const hoursSinceStart = (new Date() - this.workStartTime) / 1000 / 60 / 60;
                 if (hoursSinceStart > 12) {
@@ -961,6 +1076,11 @@ class PalletTrackerApp {
             this.todayChecks = [];
             this.currentPalletCheck = null;
             this.isWorkingDay = false;
+            this.todayStats = {
+                totalPallets: 0,
+                totalBoxes: 0,
+                totalErrors: 0
+            };
         }
     }
     
