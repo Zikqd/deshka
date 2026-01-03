@@ -214,6 +214,27 @@ section h2 {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
+/* В разделе .input-group input добавляем поддержку number */
+.input-group input[type="text"],
+.input-group input[type="number"] {
+    padding: 15px;
+    border: 2px solid #cbd5e0;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    transition: border-color 0.3s ease;
+}
+
+.input-group input[type="number"] {
+    width: 200px;
+}
+
+/* Для мобильных устройств */
+@media (max-width: 768px) {
+    .input-group input[type="number"] {
+        width: 100%;
+    }
+}
+
 .button-group {
     display: flex;
     gap: 15px;
