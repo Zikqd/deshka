@@ -186,6 +186,11 @@ section h2 {
     gap: 20px;
 }
 
+.combined-input {
+    flex: 1;
+    min-width: 250px;
+}
+
 .input-group {
     display: flex;
     flex-direction: column;
@@ -206,6 +211,7 @@ section h2 {
     border-radius: 10px;
     font-size: 1.1rem;
     transition: border-color 0.3s ease;
+    width: 100%;
 }
 
 .input-group input:focus {
@@ -214,25 +220,11 @@ section h2 {
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-/* В разделе .input-group input добавляем поддержку number */
-.input-group input[type="text"],
-.input-group input[type="number"] {
-    padding: 15px;
-    border: 2px solid #cbd5e0;
-    border-radius: 10px;
-    font-size: 1.1rem;
-    transition: border-color 0.3s ease;
-}
-
-.input-group input[type="number"] {
-    width: 200px;
-}
-
-/* Для мобильных устройств */
-@media (max-width: 768px) {
-    .input-group input[type="number"] {
-        width: 100%;
-    }
+.input-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-end;
 }
 
 .button-group {
@@ -311,6 +303,20 @@ tbody td {
     font-size: 0.85rem;
 }
 
+/* Статистика дня */
+.stats-summary {
+    background: #edf2f7;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.stats-summary strong {
+    color: #2d3748;
+}
+
 .hint {
     margin-top: 10px;
     font-size: 0.9rem;
@@ -352,6 +358,10 @@ footer {
     display: flex;
 }
 
+.top-modal {
+    z-index: 2000 !important; /* Выше всех окон */
+}
+
 .modal-content {
     background: white;
     padding: 30px;
@@ -361,6 +371,10 @@ footer {
     max-height: 90vh;
     overflow-y: auto;
     animation: modalSlide 0.3s ease;
+}
+
+.stats-modal {
+    max-width: 600px;
 }
 
 .wide-modal {
@@ -530,6 +544,26 @@ textarea {
     border-left: 4px solid #38b2ac;
 }
 
+/* Статистика паллета */
+.pallet-stats-info {
+    background: #f0f9ff;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4299e1;
+}
+
+.pallet-stats-info p {
+    margin: 8px 0;
+    font-size: 1.1rem;
+}
+
+.pallet-stats-info strong {
+    color: #2d3748;
+    min-width: 150px;
+    display: inline-block;
+}
+
 /* Уведомления */
 .notification {
     position: fixed;
@@ -542,6 +576,10 @@ textarea {
     transform: translateX(150%);
     transition: transform 0.3s ease;
     z-index: 1001;
+    max-width: 400px;
+    word-wrap: break-word;
+    white-space: pre-line;
+    line-height: 1.4;
 }
 
 .notification.show {
@@ -593,6 +631,12 @@ textarea {
     
     .input-row {
         flex-direction: column;
+        gap: 15px;
+    }
+    
+    .combined-input {
+        min-width: 100%;
+        width: 100%;
     }
     
     .input-row input,
@@ -605,38 +649,4 @@ textarea {
         gap: 15px;
         text-align: center;
     }
-}
-/* Обновление стилей уведомлений для многострочных сообщений */
-.notification {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 10px;
-    color: white;
-    font-weight: 600;
-    transform: translateX(150%);
-    transition: transform 0.3s ease;
-    z-index: 1001;
-    max-width: 400px;
-    word-wrap: break-word;
-    white-space: pre-line; /* Важно: сохраняет переносы строк */
-    line-height: 1.4;
-}
-
-.notification.show {
-    transform: translateX(0);
-}
-
-/* Остальные стили остаются такими же */
-.notification.success {
-    background: linear-gradient(135deg, #48bb78 0%, #2f855a 100%);
-}
-
-.notification.error {
-    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
-}
-
-.notification.info {
-    background: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
 }
