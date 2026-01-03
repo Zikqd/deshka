@@ -112,6 +112,7 @@ class PalletTrackerApp {
         this.palletsChecked = 0;
         this.todayChecks = [];
         this.tempErrors = [];
+        this.currentPalletCheck = null; // Сброс текущей проверки
         
         this.updateDisplay();
         this.enablePalletControls();
@@ -152,6 +153,9 @@ class PalletTrackerApp {
             return;
         }
         
+        // Сбрасываем временные ошибки перед началом новой проверки
+        this.tempErrors = [];
+        
         // Показываем модальное окно вместо confirm()
         this.showConfirmModal(`Начать проверку паллета:\n${code}?`, () => {
             this.currentPalletCheck = {
@@ -175,14 +179,30 @@ class PalletTrackerApp {
             return;
         }
         
+        // Сбрасываем временные ошибки перед показом формы
         this.tempErrors = [];
         this.showModal('errorModal');
     }
     
     showErrorForm() {
         this.hideModal('errorModal');
+        this.resetErrorForm(); // Сбрасываем форму перед показом
         this.updateErrorFormVisibility();
         this.showModal('errorDetailsModal');
+    }
+    
+    resetErrorForm() {
+        // Сбрасываем все поля формы
+        document.querySelector('input[name="errorType"][value="недостача"]').checked = true;
+        
+        document.getElementById('productPLU').value = '';
+        document.getElementById('productName').value = '';
+        document.getElementById('productQuantity').value = '';
+        document.getElementById('productUnit').value = 'шт';
+        document.getElementById('errorComment').value = '';
+        
+        // Очищаем список добавленных ошибок
+        document.getElementById('addedErrorsList').innerHTML = '';
     }
     
     updateErrorFormVisibility() {
@@ -193,10 +213,6 @@ class PalletTrackerApp {
             productDetails.style.display = 'block';
         } else {
             productDetails.style.display = 'none';
-            // Очистить поля товара
-            document.getElementById('productPLU').value = '';
-            document.getElementById('productName').value = '';
-            document.getElementById('productQuantity').value = '';
         }
     }
     
@@ -224,11 +240,15 @@ class PalletTrackerApp {
         this.tempErrors.push(errorData);
         this.updateAddedErrorsList();
         
-        // Очистить форму
+        // Очистить форму для следующей ошибки
         document.getElementById('productPLU').value = '';
         document.getElementById('productName').value = '';
         document.getElementById('productQuantity').value = '';
         document.getElementById('errorComment').value = '';
+        
+        // Сбросить тип ошибки на стандартный
+        document.querySelector('input[name="errorType"][value="недостача"]').checked = true;
+        this.updateErrorFormVisibility();
         
         this.showNotification('Ошибка добавлена', 'success');
     }
@@ -320,10 +340,14 @@ class PalletTrackerApp {
         
         this.showNotification(message, 'success');
         
+        // Полностью сбрасываем состояние для следующей проверки
         this.currentPalletCheck = null;
         this.tempErrors = [];
         this.updateCurrentCheckDisplay();
         this.updateButtonStates();
+        
+        // Сбрасываем форму ошибок
+        this.resetErrorForm();
     }
     
     // ============ ОТОБРАЖЕНИЕ ДАННЫХ ============
