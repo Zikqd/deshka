@@ -10,6 +10,7 @@ class PalletTrackerApp {
         this.todayChecks = [];
         this.allDaysHistory = {};
         this.tempErrors = [];
+        this.pendingConfirmCallback = null;
         
         this.init();
     }
@@ -19,6 +20,7 @@ class PalletTrackerApp {
         this.setupEventListeners();
         this.loadFromStorage();
         this.updateDisplay();
+        this.updateErrorFormVisibility();
     }
     
     setupDate() {
@@ -49,6 +51,11 @@ class PalletTrackerApp {
             if (e.key === 'Enter') this.startPalletCheck();
         });
         
+        // Ввод количества коробов по Enter
+        document.getElementById('boxCount').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.startPalletCheck();
+        });
+        
         // Обработчики модальных окон
         document.getElementById('noErrors').addEventListener('click', () => this.endPalletCheckWithErrors([]));
         document.getElementById('yesErrors').addEventListener('click', () => this.showErrorForm());
@@ -71,12 +78,26 @@ class PalletTrackerApp {
         document.getElementById('confirmYes').addEventListener('click', () => this.confirmAction());
         document.getElementById('confirmNo').addEventListener('click', () => this.hideModal('confirmModal'));
         
+        // Обработчик клавиши Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideAllModals();
+            }
+        });
+        
         // Клик по фону для закрытия модальных окон
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) this.hideModal(modal.id);
             });
         });
+    }
+    
+    hideAllModals() {
+        document.querySelectorAll('.modal.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
+        this.pendingConfirmCallback = null;
     }
     
     // ============ МОДАЛЬНЫЕ ОКНА ПОДТВЕРЖДЕНИЯ ============
@@ -112,7 +133,7 @@ class PalletTrackerApp {
         this.palletsChecked = 0;
         this.todayChecks = [];
         this.tempErrors = [];
-        this.currentPalletCheck = null; // Сброс текущей проверки
+        this.currentPalletCheck = null;
         
         this.updateDisplay();
         this.enablePalletControls();
@@ -142,9 +163,16 @@ class PalletTrackerApp {
         }
         
         const code = document.getElementById('palletCode').value.trim().toUpperCase();
+        const boxCount = parseInt(document.getElementById('boxCount').value) || 0;
         
-        if (!code.startsWith('D') || code.length < 2 || !/^D\d+$/.test(code)) {
-            this.showNotification('Неверный формат D-кода! Пример: D40505050', 'error');
+        // Проверяем, что введен D-код ИЛИ количество коробов > 0
+        if (code) {
+            if (!code.startsWith('D') || code.length < 2 || !/^D\d+$/.test(code)) {
+                this.showNotification('Неверный формат D-кода! Пример: D40505050', 'error');
+                return;
+            }
+        } else if (boxCount <= 0) {
+            this.showNotification('Введите D-код ИЛИ количество коробов больше 0!', 'error');
             return;
         }
         
@@ -156,20 +184,38 @@ class PalletTrackerApp {
         // Сбрасываем временные ошибки перед началом новой проверки
         this.tempErrors = [];
         
+        // Формируем сообщение для подтверждения
+        let confirmMessage = '';
+        if (code) {
+            confirmMessage = `Начать проверку паллета:\n${code}`;
+        } else {
+            confirmMessage = `Начать проверку без D-кода`;
+        }
+        
+        if (boxCount > 0) {
+            confirmMessage += `\nКоличество коробов: ${boxCount}`;
+        }
+        
+        confirmMessage += '?';
+        
         // Показываем модальное окно вместо confirm()
-        this.showConfirmModal(`Начать проверку паллета:\n${code}?`, () => {
+        this.showConfirmModal(confirmMessage, () => {
             this.currentPalletCheck = {
-                code: code,
+                code: code || 'Без D-кода',
+                boxCount: boxCount,
                 start: new Date(),
                 end: null,
                 duration: null,
                 errors: []
             };
             
+            // Очищаем поля ввода
             document.getElementById('palletCode').value = '';
+            document.getElementById('boxCount').value = '0';
+            
             this.updateCurrentCheckDisplay();
             this.updateButtonStates();
-            this.showNotification(`Проверка паллета ${code} начата`, 'success');
+            this.showNotification(`Проверка паллета ${this.currentPalletCheck.code} начата`, 'success');
         });
     }
     
@@ -186,7 +232,7 @@ class PalletTrackerApp {
     
     showErrorForm() {
         this.hideModal('errorModal');
-        this.resetErrorForm(); // Сбрасываем форму перед показом
+        this.resetErrorForm();
         this.updateErrorFormVisibility();
         this.showModal('errorDetailsModal');
     }
@@ -209,10 +255,12 @@ class PalletTrackerApp {
         const errorType = document.querySelector('input[name="errorType"]:checked').value;
         const productDetails = document.getElementById('productDetails');
         
-        if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
-            productDetails.style.display = 'block';
-        } else {
-            productDetails.style.display = 'none';
+        if (productDetails) {
+            if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
+                productDetails.style.display = 'block';
+            } else {
+                productDetails.style.display = 'none';
+            }
         }
     }
     
@@ -324,8 +372,11 @@ class PalletTrackerApp {
         this.updateTodayChecksTable();
         this.updateDisplay();
         
-        // Вместо alert() показываем уведомление
+        // Формируем сообщение
         let message = `Паллет ${this.currentPalletCheck.code} проверен!\n`;
+        if (this.currentPalletCheck.boxCount > 0) {
+            message += `Коробов: ${this.currentPalletCheck.boxCount}\n`;
+        }
         message += `Длительность: ${this.currentPalletCheck.duration}\n`;
         message += `Проверено: ${this.palletsChecked}/${this.totalPalletsToCheck}`;
         
@@ -406,10 +457,17 @@ class PalletTrackerApp {
         
         if (this.currentPalletCheck) {
             const startStr = this.formatTime(this.currentPalletCheck.start);
-            display.innerHTML = `
+            let displayText = `
                 <i class="fas fa-sync-alt fa-spin"></i>
                 Проверяется: ${this.currentPalletCheck.code} (начато в ${startStr})
             `;
+            
+            // Добавляем информацию о количестве коробов, если есть
+            if (this.currentPalletCheck.boxCount > 0) {
+                displayText += `<br><i class="fas fa-box"></i> Коробов: ${this.currentPalletCheck.boxCount}`;
+            }
+            
+            display.innerHTML = displayText;
         } else {
             display.innerHTML = '';
         }
@@ -468,9 +526,15 @@ class PalletTrackerApp {
             const endStr = this.formatTime(check.end);
             const hasErrors = check.errors && check.errors.length > 0;
             
+            // Формируем информацию о паллете
+            let palletInfo = `<strong>${check.code}</strong>`;
+            if (check.boxCount > 0) {
+                palletInfo += `<br><small>Коробов: ${check.boxCount}</small>`;
+            }
+            
             row.innerHTML = `
                 <td>${index + 1}</td>
-                <td><strong>${check.code}</strong></td>
+                <td>${palletInfo}</td>
                 <td>${startStr}</td>
                 <td>${endStr}</td>
                 <td>${check.duration}</td>
@@ -542,7 +606,7 @@ class PalletTrackerApp {
                         minute: '2-digit'
                     });
                     
-                    const duration = (endTime - startTime) / 1000 / 60; // в минутах
+                    const duration = (endTime - startTime) / 1000 / 60;
                     const hours = Math.floor(duration / 60);
                     const minutes = Math.round(duration % 60);
                     totalTime = `${hours}ч ${minutes}м`;
@@ -648,10 +712,16 @@ class PalletTrackerApp {
             
             const hasErrors = check.errors && check.errors.length > 0;
             
+            // Формируем информацию о паллете
+            let palletInfo = `<strong>${check.code}</strong>`;
+            if (check.boxCount > 0) {
+                palletInfo += `<br><small>Коробов: ${check.boxCount}</small>`;
+            }
+            
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index + 1}</td>
-                <td><strong>${check.code}</strong></td>
+                <td>${palletInfo}</td>
                 <td>${startStr}</td>
                 <td>${endStr}</td>
                 <td>${check.duration}</td>
@@ -746,6 +816,12 @@ class PalletTrackerApp {
             });
             
             errorsHtml += `<p><strong>Всего ошибок:</strong> ${check.errors.length}</p>`;
+            
+            // Добавляем информацию о количестве коробов, если есть
+            if (check.boxCount > 0) {
+                errorsHtml += `<p><strong>Количество коробов:</strong> ${check.boxCount}</p>`;
+            }
+            
             container.innerHTML = errorsHtml;
         }
         
@@ -766,13 +842,19 @@ class PalletTrackerApp {
                 second: '2-digit'
             });
             
-            const timeInfo = `
+            let timeInfo = `
                 <div class="error-item">
                     <p><strong>Начало:</strong> ${startStr}</p>
                     <p><strong>Окончание:</strong> ${endStr}</p>
                     <p><strong>Длительность:</strong> ${check.duration}</p>
-                </div>
             `;
+            
+            // Добавляем количество коробов
+            if (check.boxCount > 0) {
+                timeInfo += `<p><strong>Количество коробов:</strong> ${check.boxCount}</p>`;
+            }
+            
+            timeInfo += `</div>`;
             
             container.insertAdjacentHTML('afterbegin', timeInfo);
         }
@@ -830,11 +912,24 @@ class PalletTrackerApp {
             
             this.allDaysHistory = data.allDaysHistory || {};
             
-            this.todayChecks = (data.todayChecks || []).map(check => ({
-                ...check,
-                start: new Date(check.start),
-                end: check.end ? new Date(check.end) : null
-            }));
+            this.todayChecks = (data.todayChecks || []).map(check => {
+                try {
+                    return {
+                        ...check,
+                        boxCount: check.boxCount || 0, // Добавляем boxCount если его нет
+                        start: check.start ? new Date(check.start) : new Date(),
+                        end: check.end ? new Date(check.end) : null
+                    };
+                } catch (e) {
+                    console.warn('Ошибка при восстановлении даты проверки:', e);
+                    return {
+                        ...check,
+                        boxCount: check.boxCount || 0,
+                        start: new Date(),
+                        end: check.end ? new Date() : null
+                    };
+                }
+            });
             
             this.workStartTime = data.workStartTime ? new Date(data.workStartTime) : null;
             this.workEndTime = data.workEndTime ? new Date(data.workEndTime) : null;
@@ -845,6 +940,7 @@ class PalletTrackerApp {
             if (data.currentPalletCheck) {
                 this.currentPalletCheck = {
                     ...data.currentPalletCheck,
+                    boxCount: data.currentPalletCheck.boxCount || 0, // Добавляем boxCount
                     start: new Date(data.currentPalletCheck.start),
                     end: data.currentPalletCheck.end ? new Date(data.currentPalletCheck.end) : null
                 };
@@ -864,6 +960,7 @@ class PalletTrackerApp {
             this.allDaysHistory = {};
             this.todayChecks = [];
             this.currentPalletCheck = null;
+            this.isWorkingDay = false;
         }
     }
     
@@ -878,11 +975,17 @@ class PalletTrackerApp {
     }
     
     showModal(modalId) {
-        document.getElementById(modalId).classList.add('active');
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
+        }
     }
     
     hideModal(modalId) {
-        document.getElementById(modalId).classList.remove('active');
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+        }
     }
     
     showNotification(message, type = 'info') {
