@@ -197,6 +197,8 @@ class PalletTrackerApp {
         document.getElementById('startWorkDay').addEventListener('click', () => this.startWorkDay());
         document.getElementById('endWorkDay').addEventListener('click', () => this.showEndWorkDayModal());
         document.getElementById('showHistory').addEventListener('click', () => this.showHistoryModal());
+        // ДОБАВИТЬ ЭТУ СТРОЧКУ:
+        document.getElementById('resetDay').addEventListener('click', () => this.resetWorkDay());
         document.getElementById('saveData').addEventListener('click', () => this.saveToStorage());
         
         // Кнопки проверки паллетов
@@ -372,6 +374,24 @@ class PalletTrackerApp {
             );
         } else {
             this.showConfirmModal('Завершить рабочий день?', () => this.endWorkDay());
+        }
+        resetWorkDay() {
+    this.showConfirmModal('Вы уверены, что хотите сбросить текущий рабочий день? Все данные будут потеряны.', () => {
+        this.workStartTime = null;
+        this.workEndTime = null;
+        this.isWorkingDay = false;
+        this.currentPalletCheck = null;
+        this.palletsChecked = 0;
+        this.todayChecks = [];
+        this.tempErrors = [];
+        
+        // Скрываем панель экспорта
+        document.getElementById('exportSection').style.display = 'none';
+        
+        this.updateDisplay();
+        this.disablePalletControls();
+        this.showNotification('Рабочий день сброшен', 'info');
+    });
         }
     }
     
