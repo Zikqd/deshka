@@ -75,8 +75,13 @@ class AuthManager {
             
             // Инициализируем приложение
             if (window.app) {
-                window.app.initApp();
+            window.app.initApp();
             }
+            else {
+            // Если приложение не существует, создаем новое
+            window.app = new PalletTrackerApp();
+            window.app.initApp();
+        }
             
             this.showNotification(`Добро пожаловать, ${this.currentUser.name}!`, 'success');
         } else {
@@ -98,25 +103,29 @@ class AuthManager {
         this.showNotification('Вы успешно вышли из системы', 'info');
     }
     
-    checkAutoLogin() {
-        const savedUser = sessionStorage.getItem('currentUser');
-        if (savedUser) {
-            try {
-                this.currentUser = JSON.parse(savedUser);
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('appContainer').style.display = 'block';
-                
-                document.getElementById('currentUser').textContent = this.currentUser.name;
-                document.getElementById('footerUser').textContent = this.currentUser.name;
-                
-                if (window.app) {
-                    window.app.initApp();
-                }
-            } catch (e) {
-                console.error('Ошибка при восстановлении сессии:', e);
+checkAutoLogin() {
+    const savedUser = sessionStorage.getItem('currentUser');
+    if (savedUser) {
+        try {
+            this.currentUser = JSON.parse(savedUser);
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            
+            document.getElementById('currentUser').textContent = this.currentUser.name;
+            document.getElementById('footerUser').textContent = this.currentUser.name;
+            
+            if (window.app) {
+                window.app.initApp();
+            } else {
+                // Если приложение не существует, создаем новое
+                window.app = new PalletTrackerApp();
+                window.app.initApp();
             }
+        } catch (e) {
+            console.error('Ошибка при восстановлении сессии:', e);
         }
     }
+}
     
     showNotification(message, type = 'info') {
         const notification = document.getElementById('notification');
