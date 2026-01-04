@@ -188,6 +188,10 @@ header {
     align-items: center;
     gap: 8px;
 }
+.btn-warning {
+    background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+    color: white;
+}
 
 .btn:hover {
     transform: translateY(-2px);
