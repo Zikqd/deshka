@@ -1,6 +1,195 @@
-// Основной класс приложения
+// Класс для управления авторизацией
+class AuthManager {
+    constructor() {
+        this.currentUser = null;
+        this.isAuthenticated = false;
+        this.users = {
+            // Базовые пользователи (в реальном приложении нужно хранить на сервере)
+            'admin': { password: 'admin123', name: 'Администратор', role: 'admin' },
+            'operator': { password: 'operator123', name: 'Оператор', role: 'operator' },
+            'user': { password: 'user123', name: 'Пользователь', role: 'user' }
+        };
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.checkAutoLogin();
+    }
+    
+    setupEventListeners() {
+        // Кнопка входа
+        document.getElementById('loginBtn').addEventListener('click', () => this.login());
+        
+        // Кнопка выхода
+        document.getElementById('logoutBtn')?.addEventListener('click', () => this.logout());
+        
+        // Показать/скрыть пароль
+        document.getElementById('togglePassword').addEventListener('click', () => this.togglePasswordVisibility());
+        
+        // Ввод по Enter в полях формы
+        document.getElementById('username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.login();
+        });
+        
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.login();
+        });
+    }
+    
+    togglePasswordVisibility() {
+        const passwordInput = document.getElementById('password');
+        const toggleButton = document.getElementById('togglePassword');
+        
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleButton.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            passwordInput.type = 'password';
+            toggleButton.innerHTML = '<i class="fas fa-eye"></i>';
+        }
+    }
+    
+    login() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const rememberMe = document.getElementById('rememberMe').checked;
+        
+        if (!username || !password) {
+            this.showNotification('Введите имя пользователя и пароль', 'error');
+            return;
+        }
+        
+        // Проверка учетных данных
+        if (this.users[username] && this.users[username].password === password) {
+            this.currentUser = {
+                username: username,
+                name: this.users[username].name,
+                role: this.users[username].role
+            };
+            this.isAuthenticated = true;
+            
+            // Сохраняем данные для автоматического входа
+            if (rememberMe) {
+                localStorage.setItem('rememberedUser', JSON.stringify({
+                    username: username,
+                    rememberMe: true
+                }));
+            } else {
+                localStorage.removeItem('rememberedUser');
+            }
+            
+            // Сохраняем сессию
+            sessionStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+            
+            this.showApp();
+            this.showNotification(`Добро пожаловать, ${this.currentUser.name}!`, 'success');
+        } else {
+            this.showNotification('Неверное имя пользователя или пароль', 'error');
+            // Очищаем поле пароля при ошибке
+            document.getElementById('password').value = '';
+            document.getElementById('password').focus();
+        }
+    }
+    
+    logout() {
+        this.showConfirmModal('Вы уверены, что хотите выйти?', () => {
+            this.currentUser = null;
+            this.isAuthenticated = false;
+            
+            // Очищаем сессию
+            sessionStorage.removeItem('currentUser');
+            
+            this.showLogin();
+            this.showNotification('Вы успешно вышли из системы', 'info');
+            
+            // Очищаем форму
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('rememberMe').checked = false;
+        });
+    }
+    
+    checkAutoLogin() {
+        // Проверяем сохраненную сессию
+        const savedUser = sessionStorage.getItem('currentUser');
+        const rememberedUser = localStorage.getItem('rememberedUser');
+        
+        if (savedUser) {
+            try {
+                this.currentUser = JSON.parse(savedUser);
+                this.isAuthenticated = true;
+                this.showApp();
+            } catch (e) {
+                console.error('Ошибка при восстановлении сессии:', e);
+                this.showLogin();
+            }
+        } else if (rememberedUser) {
+            try {
+                const remembered = JSON.parse(rememberedUser);
+                if (remembered.rememberMe && this.users[remembered.username]) {
+                    // Автоматически заполняем имя пользователя
+                    document.getElementById('username').value = remembered.username;
+                    document.getElementById('rememberMe').checked = true;
+                    document.getElementById('password').focus();
+                }
+            } catch (e) {
+                console.error('Ошибка при восстановлении запомненного пользователя:', e);
+            }
+        }
+    }
+    
+    showApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        
+        // Обновляем информацию о пользователе
+        if (this.currentUser) {
+            document.getElementById('currentUser').textContent = this.currentUser.name;
+            document.getElementById('footerUser').textContent = this.currentUser.name;
+        }
+    }
+    
+    showLogin() {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('appContainer').style.display = 'none';
+    }
+    
+    showNotification(message, type = 'info') {
+        const notification = document.getElementById('notification');
+        notification.textContent = message;
+        notification.className = `notification ${type} show`;
+        
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 3000);
+    }
+    
+    showConfirmModal(message, callback) {
+        document.getElementById('confirmMessage').textContent = message;
+        document.getElementById('confirmModal').classList.add('active');
+        this.pendingConfirmCallback = callback;
+    }
+    
+    confirmAction() {
+        if (this.pendingConfirmCallback) {
+            this.pendingConfirmCallback();
+        }
+        this.hideModal('confirmModal');
+        this.pendingConfirmCallback = null;
+    }
+    
+    hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+}
+
+// Основной класс приложения (обновленный)
 class PalletTrackerApp {
     constructor() {
+        this.authManager = new AuthManager();
         this.workStartTime = null;
         this.workEndTime = null;
         this.isWorkingDay = false;
@@ -21,6 +210,16 @@ class PalletTrackerApp {
     }
     
     init() {
+        // Инициализируем авторизацию
+        this.authManager.init();
+        
+        // Если пользователь авторизован, инициализируем приложение
+        if (this.authManager.isAuthenticated) {
+            this.initApp();
+        }
+    }
+    
+    initApp() {
         this.setupDate();
         this.setupEventListeners();
         this.loadFromStorage();
@@ -42,6 +241,9 @@ class PalletTrackerApp {
     }
     
     setupEventListeners() {
+        // Кнопка выхода
+        document.getElementById('logoutBtn').addEventListener('click', () => this.authManager.logout());
+        
         // Кнопки рабочего времени
         document.getElementById('startWorkDay').addEventListener('click', () => this.startWorkDay());
         document.getElementById('endWorkDay').addEventListener('click', () => this.showEndWorkDayModal());
@@ -135,6 +337,11 @@ class PalletTrackerApp {
     
     // ============ РАБОЧИЙ ДЕНЬ ============
     startWorkDay() {
+        if (!this.authManager.isAuthenticated) {
+            this.showNotification('Требуется авторизация!', 'error');
+            return;
+        }
+        
         this.workStartTime = new Date();
         this.isWorkingDay = true;
         this.palletsChecked = 0;
@@ -153,6 +360,11 @@ class PalletTrackerApp {
     }
     
     endWorkDay() {
+        if (!this.authManager.isAuthenticated) {
+            this.showNotification('Требуется авторизация!', 'error');
+            return;
+        }
+        
         this.workEndTime = new Date();
         this.isWorkingDay = false;
         
@@ -164,6 +376,11 @@ class PalletTrackerApp {
     
     // ============ ПРОВЕРКА ПАЛЛЕТОВ ============
     startPalletCheck() {
+        if (!this.authManager.isAuthenticated) {
+            this.showNotification('Требуется авторизация!', 'error');
+            return;
+        }
+        
         console.log('Начало проверки паллета:', {
             isWorkingDay: this.isWorkingDay,
             currentPalletCheck: this.currentPalletCheck
@@ -679,6 +896,11 @@ class PalletTrackerApp {
     
     // ============ ИСТОРИЯ ============
     showHistory() {
+        if (!this.authManager.isAuthenticated) {
+            this.showNotification('Требуется авторизация!', 'error');
+            return;
+        }
+        
         this.loadFromStorage();
         this.updateHistoryTable();
         this.showModal('historyModal');
@@ -990,6 +1212,11 @@ class PalletTrackerApp {
     }
     
     saveToStorage() {
+        if (!this.authManager.isAuthenticated) {
+            this.showNotification('Требуется авторизация для сохранения!', 'error');
+            return;
+        }
+        
         const data = {
             allDaysHistory: this.allDaysHistory,
             todayChecks: this.todayChecks.map(check => ({
