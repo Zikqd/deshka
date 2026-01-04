@@ -46,25 +46,162 @@
                 <div class="login-hint">
                     <p><i class="fas fa-info-circle"></i> Для доступа к системе обратитесь к администратору</p>
                     <p class="test-credentials">
-                        <small>Тестовые данные: admin / admin123</small>
+                        <strong>Тестовые данные:</strong><br>
+                        Логин: <code>admin</code> Пароль: <code>admin123</code><br>
+                        Логин: <code>operator</code> Пароль: <code>operator123</code>
                     </p>
                 </div>
             </div>
             
             <div class="login-footer">
-                <div class="version">Версия 1.2 | Требуется авторизация</div>
+                <div class="version">Версия 1.0</div>
             </div>
         </div>
     </div>
 
     <!-- Основное приложение (скрыто до входа) -->
-    <div id="appContainer" class="container" style="display: none;">
-        <!-- Остальной код остается без изменений -->
-        <!-- ... -->
+    <div id="appContainer" style="display: none;">
+        <div class="container">
+            <!-- Шапка -->
+            <header>
+                <div class="header-left">
+                    <h1><i class="fas fa-clipboard-check"></i> Трекер проверок паллетов РЦ</h1>
+                    <div class="date-display" id="currentDate"></div>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="currentUser">Пользователь</span>
+                        <button id="logoutBtn" class="btn btn-small btn-secondary">
+                            <i class="fas fa-sign-out-alt"></i> Выйти
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Панель рабочего времени -->
+            <section class="work-time-section">
+                <h2><i class="fas fa-clock"></i> Рабочее время</h2>
+                <div class="work-time-controls">
+                    <button id="startWorkDay" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Начало рабочего дня
+                    </button>
+                    <button id="endWorkDay" class="btn btn-danger" disabled>
+                        <i class="fas fa-stop"></i> Конец рабочего дня
+                    </button>
+                    <button id="showHistory" class="btn btn-info">
+                        <i class="fas fa-history"></i> История проверок
+                    </button>
+                </div>
+                <div class="work-time-info">
+                    <p id="workTimeDisplay">Рабочий день не начат</p>
+                </div>
+            </section>
+
+            <!-- Панель проверки паллетов -->
+            <section class="pallet-section">
+                <h2><i class="fas fa-pallet"></i> Проверка паллетов</h2>
+                
+                <div class="progress-container">
+                    <div class="progress-info">
+                        <span id="palletCounter">Паллетов проверено: 0/15</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+
+                <div class="pallet-controls">
+                    <!-- Одна строка для D-кода и количества коробов -->
+                    <div class="input-row">
+                        <div class="input-group combined-input">
+                            <label for="palletCode"><i class="fas fa-barcode"></i> D-код паллета:</label>
+                            <input type="text" id="palletCode" placeholder="Например: D40505050" maxlength="20">
+                        </div>
+                        
+                        <div class="input-group combined-input">
+                            <label for="boxCount"><i class="fas fa-box"></i> Количество коробов:</label>
+                            <input type="number" id="boxCount" placeholder="0" min="1" max="999" value="" required>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="startPalletCheck" class="btn btn-primary" disabled>
+                            <i class="fas fa-play-circle"></i> Начать проверку паллета
+                        </button>
+                        <button id="endPalletCheck" class="btn btn-danger" disabled>
+                            <i class="fas fa-check-circle"></i> Завершить проверку паллета
+                        </button>
+                    </div>
+                    
+                    <div class="current-check" id="currentCheckDisplay"></div>
+                </div>
+            </section>
+
+            <!-- Сегодняшние проверки -->
+            <section class="today-checks">
+                <h2><i class="fas fa-list"></i> Сегодняшние проверки</h2>
+                <div class="table-container">
+                    <table id="todayChecksTable">
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>D-код</th>
+                                <th>Коробов</th>
+                                <th>Начало</th>
+                                <th>Окончание</th>
+                                <th>Длительность</th>
+                                <th>Ошибки</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="todayChecksBody">
+                            <!-- Данные будут загружаться здесь -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="stats-summary">
+                    <p><strong>Итого за день:</strong> <span id="totalPallets">0</span> паллетов, <span id="totalBoxes">0</span> коробов, <span id="totalErrors">0</span> ошибок</p>
+                </div>
+                <p class="hint">Нажмите на кнопку "Статистика" для деталей проверки</p>
+            </section>
+
+            <!-- Кнопка сохранения -->
+            <footer>
+                <button id="saveData" class="btn btn-save">
+                    <i class="fas fa-save"></i> Сохранить данные
+                </button>
+                <div class="version">Пользователь: <span id="footerUser"></span></div>
+            </footer>
+        </div>
     </div>
 
     <!-- Модальные окна -->
-    <!-- ... остальной код без изменений ... -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-exclamation-triangle"></i> Есть ошибки?</h3>
+            <p>Были ли обнаружены ошибки при проверке паллета?</p>
+            <div class="modal-buttons">
+                <button id="noErrors" class="btn btn-success">Нет ошибок</button>
+                <button id="yesErrors" class="btn btn-warning">Есть ошибки</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для подтверждений -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-question-circle"></i> Подтверждение</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-buttons">
+                <button id="confirmYes" class="btn btn-primary">Да</button>
+                <button id="confirmNo" class="btn btn-secondary">Нет</button>
+                <button id="closeConfirmModal" class="btn btn-danger">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notification" class="notification"></div>
 
     <script src="script.js"></script>
 </body>
