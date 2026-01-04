@@ -494,14 +494,11 @@ class PalletTrackerApp {
         const errorType = document.querySelector('input[name="errorType"]:checked').value;
         const comment = document.getElementById('errorComment').value.trim();
         
-        if (!comment) {
-            this.showNotification('Введите комментарий', 'error');
-            return;
-        }
+        
         
         const errorData = {
             type: errorType,
-            comment: comment
+            comment: comment || ''
         };
         
         if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
