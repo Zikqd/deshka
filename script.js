@@ -166,7 +166,7 @@ class PalletTrackerApp {
         this.loadFromStorage();
         this.loadSettings();
         this.updateDisplay();
-        this.updateErrorFormVisibility();
+        this.setupErrorFormListeners(); // Добавляем инициализацию формы ошибок
     }
     
     setupDate() {
@@ -216,19 +216,9 @@ class PalletTrackerApp {
             if (e.key === 'Enter') this.startPalletCheck();
         });
         
-        // Обработчики модальных окон
+        // Обработчики модальных окон ошибок
         document.getElementById('noErrors').addEventListener('click', () => this.endPalletCheckWithErrors([]));
         document.getElementById('yesErrors').addEventListener('click', () => this.showErrorForm());
-        
-        // Форма ошибок
-        document.getElementById('addAnotherError').addEventListener('click', () => this.addError());
-        document.getElementById('finishErrors').addEventListener('click', () => this.finishErrors());
-        document.getElementById('cancelErrors').addEventListener('click', () => this.cancelErrors());
-        
-        // Обновление видимости полей в форме ошибок
-        document.querySelectorAll('input[name="errorType"]').forEach(radio => {
-            radio.addEventListener('change', () => this.updateErrorFormVisibility());
-        });
         
         // Настройки
         document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
@@ -254,6 +244,36 @@ class PalletTrackerApp {
                 this.hideAllModals();
             }
         });
+    }
+    
+    // Отдельная функция для настройки обработчиков формы ошибок
+    setupErrorFormListeners() {
+        console.log('Настройка обработчиков формы ошибок');
+        
+        // Кнопки формы ошибок
+        const addAnotherErrorBtn = document.getElementById('addAnotherError');
+        const finishErrorsBtn = document.getElementById('finishErrors');
+        const cancelErrorsBtn = document.getElementById('cancelErrors');
+        
+        if (addAnotherErrorBtn) {
+            addAnotherErrorBtn.addEventListener('click', () => this.addError());
+        }
+        
+        if (finishErrorsBtn) {
+            finishErrorsBtn.addEventListener('click', () => this.finishErrors());
+        }
+        
+        if (cancelErrorsBtn) {
+            cancelErrorsBtn.addEventListener('click', () => this.cancelErrors());
+        }
+        
+        // Обновление видимости полей в форме ошибок
+        document.querySelectorAll('input[name="errorType"]').forEach(radio => {
+            radio.addEventListener('change', () => this.updateErrorFormVisibility());
+        });
+        
+        // Инициализируем видимость формы
+        this.updateErrorFormVisibility();
     }
     
     showSettingsModal() {
@@ -301,6 +321,7 @@ class PalletTrackerApp {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.add('active');
+            console.log(`Открыто модальное окно: ${modalId}`);
         }
     }
     
@@ -426,6 +447,7 @@ class PalletTrackerApp {
     }
     
     askAboutErrors() {
+        console.log('askAboutErrors вызвана', this.currentPalletCheck);
         if (!this.currentPalletCheck) {
             this.showNotification('Нет активной проверки!', 'error');
             return;
@@ -435,6 +457,7 @@ class PalletTrackerApp {
     }
     
     showErrorForm() {
+        console.log('showErrorForm вызвана');
         this.hideModal('errorModal');
         this.resetErrorForm();
         this.updateErrorFormVisibility();
@@ -452,10 +475,10 @@ class PalletTrackerApp {
     }
     
     updateErrorFormVisibility() {
-        const errorType = document.querySelector('input[name="errorType"]:checked').value;
+        const errorType = document.querySelector('input[name="errorType"]:checked')?.value;
         const productDetails = document.getElementById('productDetails');
         
-        if (productDetails) {
+        if (productDetails && errorType) {
             if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
                 productDetails.style.display = 'block';
             } else {
@@ -465,8 +488,14 @@ class PalletTrackerApp {
     }
     
     addError() {
-        const errorType = document.querySelector('input[name="errorType"]:checked').value;
+        console.log('addError вызвана');
+        const errorType = document.querySelector('input[name="errorType"]:checked')?.value;
         const comment = document.getElementById('errorComment').value.trim();
+        
+        if (!errorType) {
+            this.showNotification('Выберите тип ошибки', 'error');
+            return;
+        }
         
         if (!comment) {
             this.showNotification('Введите комментарий', 'error');
@@ -502,6 +531,8 @@ class PalletTrackerApp {
     
     updateAddedErrorsList() {
         const list = document.getElementById('addedErrorsList');
+        if (!list) return;
+        
         list.innerHTML = '';
         
         this.tempErrors.forEach((error, index) => {
@@ -523,6 +554,7 @@ class PalletTrackerApp {
             list.appendChild(li);
         });
         
+        // Добавляем обработчики для кнопок удаления
         document.querySelectorAll('.remove-error').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const index = parseInt(e.target.closest('.remove-error').dataset.index);
@@ -533,6 +565,7 @@ class PalletTrackerApp {
     }
     
     finishErrors() {
+        console.log('finishErrors вызвана, tempErrors:', this.tempErrors);
         if (this.tempErrors.length === 0) {
             this.showNotification('Не добавлено ни одной ошибки!', 'error');
             return;
@@ -551,6 +584,7 @@ class PalletTrackerApp {
     }
     
     endPalletCheckWithErrors(errors) {
+        console.log('endPalletCheckWithErrors вызвана', errors);
         if (!this.currentPalletCheck) return;
         
         this.hideModal('errorModal');
