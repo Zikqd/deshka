@@ -1,4 +1,4 @@
-// Простая система авторизации
+// Система авторизации
 class AuthManager {
     constructor() {
         this.currentUser = null;
@@ -50,8 +50,6 @@ class AuthManager {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         
-        console.log('Попытка входа:', username);
-        
         if (!username || !password) {
             this.showNotification('Введите имя пользователя и пароль', 'error');
             return;
@@ -96,7 +94,6 @@ class AuthManager {
         // Очищаем форму
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
-        document.getElementById('rememberMe').checked = false;
         
         this.showNotification('Вы успешно вышли из системы', 'info');
     }
@@ -216,6 +213,11 @@ class PalletTrackerApp {
             if (e.key === 'Enter') this.startPalletCheck();
         });
         
+        // Ввод количества коробов по Enter
+        document.getElementById('boxCount').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.startPalletCheck();
+        });
+        
         // Обработчики модальных окон
         document.getElementById('noErrors').addEventListener('click', () => this.endPalletCheckWithErrors([]));
         document.getElementById('yesErrors').addEventListener('click', () => this.showErrorForm());
@@ -300,7 +302,8 @@ class PalletTrackerApp {
     showModal(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) {
-            modal.classList.add('active');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('active'), 10);
         }
     }
     
@@ -308,12 +311,14 @@ class PalletTrackerApp {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
         }
     }
     
     hideAllModals() {
         document.querySelectorAll('.modal.active').forEach(modal => {
             modal.classList.remove('active');
+            setTimeout(() => modal.style.display = 'none', 300);
         });
         this.pendingConfirmCallback = null;
     }
@@ -406,9 +411,10 @@ class PalletTrackerApp {
         
         this.tempErrors = [];
         
-        this.showConfirmModal(`Начать проверку паллета: ${code || 'Без D-кода'}\nКоличество коробов: ${boxCount}?`, () => {
+        const palletCode = code || `Без D-кода-${Date.now().toString().slice(-4)}`;
+        this.showConfirmModal(`Начать проверку паллета: ${palletCode}\nКоличество коробов: ${boxCount}?`, () => {
             this.currentPalletCheck = {
-                code: code || `Без D-кода-${Date.now().toString().slice(-4)}`,
+                code: palletCode,
                 boxCount: boxCount,
                 start: new Date(),
                 end: null,
@@ -825,33 +831,31 @@ class PalletTrackerApp {
         const totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
         const totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
         
-        const actContent = `
-            АКТ ПРОВЕРКИ ПАЛЛЕТОВ № ${new Date().getTime()}
+        const actContent = `АКТ ПРОВЕРКИ ПАЛЛЕТОВ № ${new Date().getTime()}
             
-            Дата составления: ${new Date().toLocaleDateString('ru-RU')}
+Дата составления: ${new Date().toLocaleDateString('ru-RU')}
             
-            1. Распределительный центр: ${this.settings.rcName}
-            2. Код РЦ: ${this.settings.rcCode}
-            3. Специалист КРО: ${this.settings.specialistName}
+1. Распределительный центр: ${this.settings.rcName}
+2. Код РЦ: ${this.settings.rcCode}
+3. Специалист КРО: ${this.settings.specialistName}
             
-            РЕЗУЛЬТАТЫ ПРОВЕРКИ:
+РЕЗУЛЬТАТЫ ПРОВЕРКИ:
             
-            1. Всего проверено паллетов: ${totalPallets}
-            2. Всего проверено коробов: ${totalBoxes}
-            3. Обнаружено ошибок: ${totalErrors}
+1. Всего проверено паллетов: ${totalPallets}
+2. Всего проверено коробов: ${totalBoxes}
+3. Обнаружено ошибок: ${totalErrors}
             
-            Детали проверки:
-            ${this.todayChecks.map((check, index) => `
-            ${index + 1}. Паллет ${check.code}:
-               - Коробов: ${check.boxCount || 0}
-               - Время проверки: ${check.duration}
-               - Ошибок: ${check.errors ? check.errors.length : 0}
-            `).join('')}
+Детали проверки:
+${this.todayChecks.map((check, index) => `
+${index + 1}. Паллет ${check.code}:
+   - Коробов: ${check.boxCount || 0}
+   - Время проверки: ${check.duration}
+   - Ошибок: ${check.errors ? check.errors.length : 0}
+`).join('')}
             
-            Подпись специалиста КРО: ____________________
+Подпись специалиста КРО: ____________________
             
-            Дата: ${new Date().toLocaleDateString('ru-RU')}
-        `;
+Дата: ${new Date().toLocaleDateString('ru-RU')}`;
         
         this.downloadTextFile(`Акт_проверки_${this.settings.rcCode}_${new Date().toISOString().slice(0,10)}.txt`, actContent);
         this.showNotification('Акт проверки сформирован', 'success');
@@ -867,32 +871,30 @@ class PalletTrackerApp {
         const totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
         const totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
         
-        const letterContent = `
-            Уважаемые коллеги,
+        const letterContent = `Уважаемые коллеги,
             
-            Направляем результаты проверки паллетов в РЦ ${this.settings.rcName} (${this.settings.rcCode}).
+Направляем результаты проверки паллетов в РЦ ${this.settings.rcName} (${this.settings.rcCode}).
             
-            Дата проверки: ${new Date().toLocaleDateString('ru-RU')}
-            Специалист КРО: ${this.settings.specialistName}
+Дата проверки: ${new Date().toLocaleDateString('ru-RU')}
+Специалист КРО: ${this.settings.specialistName}
             
-            Результаты проверки:
-            - Проверено паллетов: ${totalPallets}
-            - Проверено коробов: ${totalBoxes}
-            - Обнаружено ошибок: ${totalErrors}
+Результаты проверки:
+- Проверено паллетов: ${totalPallets}
+- Проверено коробов: ${totalBoxes}
+- Обнаружено ошибок: ${totalErrors}
             
-            ${totalErrors > 0 ? 'Обнаружены следующие проблемы, требующие внимания:' : 'Ошибок не обнаружено. Все паллеты соответствуют требованиям.'}
+${totalErrors > 0 ? 'Обнаружены следующие проблемы, требующие внимания:' : 'Ошибок не обнаружено. Все паллеты соответствуют требованиям.'}
             
-            ${totalErrors > 0 ? this.todayChecks.filter(check => check.errors && check.errors.length > 0)
-                .map(check => `Паллет ${check.code}: ${check.errors.length} ошибок`)
-                .join('\n') : ''}
+${totalErrors > 0 ? this.todayChecks.filter(check => check.errors && check.errors.length > 0)
+    .map(check => `Паллет ${check.code}: ${check.errors.length} ошибок`)
+    .join('\n') : ''}
             
-            Просим принять необходимые меры по устранению выявленных замечаний.
+Просим принять необходимые меры по устранению выявленных замечаний.
             
-            С уважением,
-            ${this.settings.specialistName}
-            Специалист КРО
-            ${this.settings.specialistEmail}
-        `;
+С уважением,
+${this.settings.specialistName}
+Специалист КРО
+${this.settings.specialistEmail}`;
         
         this.downloadTextFile(`Письмо_результатов_${this.settings.rcCode}_${new Date().toISOString().slice(0,10)}.txt`, letterContent);
         this.showNotification('Письмо результатов сформировано', 'success');
@@ -1087,8 +1089,8 @@ class PalletTrackerApp {
         const data = {
             allDaysHistory: this.allDaysHistory,
             todayChecks: this.todayChecks,
-            workStartTime: this.workStartTime,
-            workEndTime: this.workEndTime,
+            workStartTime: this.workStartTime ? this.workStartTime.toISOString() : null,
+            workEndTime: this.workEndTime ? this.workEndTime.toISOString() : null,
             palletsChecked: this.palletsChecked,
             isWorkingDay: this.isWorkingDay,
             currentPalletCheck: this.currentPalletCheck,
@@ -1115,6 +1117,22 @@ class PalletTrackerApp {
             this.currentPalletCheck = data.currentPalletCheck || null;
             this.tempErrors = data.tempErrors || [];
             
+            // Восстанавливаем объекты Date из строк
+            if (this.currentPalletCheck && this.currentPalletCheck.start) {
+                this.currentPalletCheck.start = new Date(this.currentPalletCheck.start);
+            }
+            
+            if (this.currentPalletCheck && this.currentPalletCheck.end) {
+                this.currentPalletCheck.end = new Date(this.currentPalletCheck.end);
+            }
+            
+            // Конвертируем даты в todayChecks
+            this.todayChecks = this.todayChecks.map(check => ({
+                ...check,
+                start: new Date(check.start),
+                end: new Date(check.end)
+            }));
+            
             // Показываем панель экспорта если все паллеты проверены
             if (this.palletsChecked >= this.totalPalletsToCheck && this.todayChecks.length > 0) {
                 this.showExportPanel();
@@ -1127,7 +1145,7 @@ class PalletTrackerApp {
     
     // ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
     formatTime(date) {
-        if (!date) return '-';
+        if (!date || !(date instanceof Date) || isNaN(date)) return '-';
         return date.toLocaleTimeString('ru-RU', {
             hour: '2-digit',
             minute: '2-digit',
