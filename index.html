@@ -6,6 +6,7 @@
     <title>Трекер проверок паллетов РЦ</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <!-- Экран входа -->
@@ -71,6 +72,9 @@
                 <div class="header-right">
                     <div class="user-info">
                         <span id="currentUser">Пользователь</span>
+                        <button id="settingsBtn" class="btn btn-small btn-secondary">
+                            <i class="fas fa-cog"></i> Настройки
+                        </button>
                         <button id="logoutBtn" class="btn btn-small btn-secondary">
                             <i class="fas fa-sign-out-alt"></i> Выйти
                         </button>
@@ -137,6 +141,23 @@
                 </div>
             </section>
 
+            <!-- Панель экспорта данных -->
+            <section class="export-section" id="exportSection" style="display: none;">
+                <h2><i class="fas fa-file-export"></i> Экспорт данных</h2>
+                <p>Все 15 паллетов проверены! Вы можете экспортировать результаты:</p>
+                <div class="export-controls">
+                    <button id="exportExcel" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Скачать Excel
+                    </button>
+                    <button id="generateAct" class="btn btn-primary">
+                        <i class="fas fa-file-contract"></i> Акт проверки
+                    </button>
+                    <button id="generateLetter" class="btn btn-info">
+                        <i class="fas fa-envelope"></i> Письмо результатов
+                    </button>
+                </div>
+            </section>
+
             <!-- Сегодняшние проверки -->
             <section class="today-checks">
                 <h2><i class="fas fa-list"></i> Сегодняшние проверки</h2>
@@ -183,6 +204,150 @@
             <div class="modal-buttons">
                 <button id="noErrors" class="btn btn-success">Нет ошибок</button>
                 <button id="yesErrors" class="btn btn-warning">Есть ошибки</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно формы ошибок -->
+    <div id="errorDetailsModal" class="modal">
+        <div class="modal-content wide-modal">
+            <h3><i class="fas fa-bug"></i> Регистрация ошибок</h3>
+            <div class="error-form">
+                <div class="form-group">
+                    <label>Тип ошибки:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="errorType" value="недостача" checked>
+                            <span>Недостача</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="errorType" value="излишки">
+                            <span>Излишки</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="errorType" value="качество товара">
+                            <span>Качество товара</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="errorType" value="высота паллета">
+                            <span>Высота паллета</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="errorType" value="не предоставлен паллет">
+                            <span>Не предоставлен паллет</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="productDetails">
+                    <label>Детали ошибки:</label>
+                    <div class="input-row">
+                        <input type="text" id="productPLU" placeholder="PLU товара">
+                        <input type="text" id="productName" placeholder="Название товара">
+                        <input type="text" id="productQuantity" placeholder="Количество">
+                        <select id="productUnit">
+                            <option value="шт">шт</option>
+                            <option value="кг">кг</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Комментарий:</label>
+                    <textarea id="errorComment" rows="3" placeholder="Подробное описание ошибки..."></textarea>
+                </div>
+
+                <div class="added-errors">
+                    <h4>Добавленные ошибки:</h4>
+                    <ul id="addedErrorsList"></ul>
+                </div>
+
+                <div class="modal-buttons">
+                    <button id="addAnotherError" class="btn btn-secondary">
+                        <i class="fas fa-plus"></i> Добавить еще ошибку
+                    </button>
+                    <button id="finishErrors" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Сохранить ошибки
+                    </button>
+                    <button id="cancelErrors" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно статистики паллета -->
+    <div id="palletStatsModal" class="modal">
+        <div class="modal-content stats-modal">
+            <h3 id="palletStatsTitle">Статистика паллета</h3>
+            <div class="pallet-stats-info" id="palletStatsInfo"></div>
+            <div class="errors-list" id="palletErrorsList"></div>
+            <button id="closePalletStats" class="btn btn-primary">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно истории -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content wide-modal">
+            <h3><i class="fas fa-history"></i> История проверок</h3>
+            <div class="table-container">
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Начало работы</th>
+                            <th>Конец работы</th>
+                            <th>Паллетов</th>
+                            <th>Коробов</th>
+                            <th>Общее время</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+            <button id="closeHistory" class="btn btn-primary">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно настроек -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-cog"></i> Настройки</h3>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label for="rcName"><i class="fas fa-warehouse"></i> Название РЦ:</label>
+                    <input type="text" id="rcName" placeholder="Введите название распределительного центра">
+                </div>
+                
+                <div class="form-group">
+                    <label for="rcCode"><i class="fas fa-hashtag"></i> Код РЦ:</label>
+                    <input type="text" id="rcCode" placeholder="Введите код РЦ">
+                </div>
+                
+                <div class="form-group">
+                    <label for="specialistName"><i class="fas fa-user-tie"></i> Имя специалиста КРО:</label>
+                    <input type="text" id="specialistName" placeholder="Введите имя специалиста">
+                </div>
+                
+                <div class="form-group">
+                    <label for="specialistEmail"><i class="fas fa-envelope"></i> Email специалиста:</label>
+                    <input type="email" id="specialistEmail" placeholder="email@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label for="targetPallets"><i class="fas fa-bullseye"></i> Целевое количество паллетов:</label>
+                    <input type="number" id="targetPallets" min="1" max="50" value="15">
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="saveSettings" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Сохранить настройки
+                </button>
+                <button id="closeSettings" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Отмена
+                </button>
             </div>
         </div>
     </div>
