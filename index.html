@@ -8,11 +8,68 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Экран входа -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <h1><i class="fas fa-clipboard-check"></i> Трекер проверок паллетов РЦ</h1>
+                <p class="login-subtitle">Авторизация сотрудника</p>
+            </div>
+            
+            <div class="login-form">
+                <div class="form-group">
+                    <label for="username"><i class="fas fa-user"></i> Имя пользователя:</label>
+                    <input type="text" id="username" placeholder="Введите имя пользователя" autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-lock"></i> Пароль:</label>
+                    <div class="password-input">
+                        <input type="password" id="password" placeholder="Введите пароль" autocomplete="current-password">
+                        <button type="button" id="togglePassword" class="toggle-password">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group remember-me">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="rememberMe">
+                        <span>Запомнить меня</span>
+                    </label>
+                </div>
+                
+                <button id="loginBtn" class="btn btn-primary login-btn">
+                    <i class="fas fa-sign-in-alt"></i> Войти
+                </button>
+                
+                <div class="login-hint">
+                    <p><i class="fas fa-info-circle"></i> Для доступа к системе обратитесь к администратору</p>
+                </div>
+            </div>
+            
+            <div class="login-footer">
+                <div class="version">Версия 1.2 | Требуется авторизация</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основное приложение (скрыто до входа) -->
+    <div id="appContainer" class="container" style="display: none;">
         <!-- Шапка -->
         <header>
-            <h1><i class="fas fa-clipboard-check"></i> Трекер проверок паллетов РЦ</h1>
-            <div class="date-display" id="currentDate"></div>
+            <div class="header-left">
+                <h1><i class="fas fa-clipboard-check"></i> Трекер проверок паллетов РЦ</h1>
+                <div class="date-display" id="currentDate"></div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <span id="currentUser"></span>
+                    <button id="logoutBtn" class="btn btn-small btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Выйти
+                    </button>
+                </div>
+            </div>
         </header>
 
         <!-- Панель рабочего времени -->
@@ -107,7 +164,7 @@
             <button id="saveData" class="btn btn-save">
                 <i class="fas fa-save"></i> Сохранить данные
             </button>
-            <div class="version">Версия 1.1</div>
+            <div class="version">Версия 1.2 | Пользователь: <span id="footerUser"></span></div>
         </footer>
     </div>
 
