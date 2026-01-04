@@ -19,8 +19,6 @@ class AuthManager {
         const loginButton = document.getElementById('loginButton');
         if (loginButton) {
             loginButton.addEventListener('click', () => this.login());
-        } else {
-            console.error('Кнопка loginButton не найдена!');
         }
         
         // Кнопка показа/скрытия пароля
@@ -61,12 +59,8 @@ class AuthManager {
     }
     
     login() {
-        console.log('Метод login() вызван');
-        
         const username = document.getElementById('username')?.value.trim() || '';
         const password = document.getElementById('password')?.value || '';
-        
-        console.log('Попытка входа:', username);
         
         if (!username || !password) {
             this.showNotification('Введите имя пользователя и пароль', 'error');
@@ -207,6 +201,13 @@ class PalletTrackerApp {
         this.setupEventListeners();
         this.loadFromStorage();
         this.loadSettings();
+        
+        // Сбрасываем поле коробов
+        const boxCountInput = document.getElementById('boxCount');
+        if (boxCountInput) {
+            boxCountInput.value = '';
+        }
+        
         this.updateDisplay();
         this.updateErrorFormVisibility();
     }
@@ -305,6 +306,9 @@ class PalletTrackerApp {
             palletCodeInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') this.startPalletCheck();
             });
+            
+            // Автоматическое обновление состояния кнопки
+            palletCodeInput.addEventListener('input', () => this.updateButtonStates());
         }
         
         // Ввод количества коробов по Enter
@@ -313,6 +317,9 @@ class PalletTrackerApp {
             boxCountInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') this.startPalletCheck();
             });
+            
+            // Автоматическое обновление состояния кнопки
+            boxCountInput.addEventListener('input', () => this.updateButtonStates());
         }
         
         // Обработчики модальных окон
@@ -408,6 +415,12 @@ class PalletTrackerApp {
             this.palletsChecked = 0;
             this.todayChecks = [];
             this.tempErrors = [];
+            
+            // Сбрасываем поля
+            const palletCodeInput = document.getElementById('palletCode');
+            const boxCountInput = document.getElementById('boxCount');
+            if (palletCodeInput) palletCodeInput.value = '';
+            if (boxCountInput) boxCountInput.value = '';
             
             // Скрываем панель экспорта
             const exportSection = document.getElementById('exportSection');
@@ -528,6 +541,12 @@ class PalletTrackerApp {
         this.tempErrors = [];
         this.currentPalletCheck = null;
         
+        // Сбрасываем поля
+        const palletCodeInput = document.getElementById('palletCode');
+        const boxCountInput = document.getElementById('boxCount');
+        if (palletCodeInput) palletCodeInput.value = '';
+        if (boxCountInput) boxCountInput.value = '';
+        
         // Скрываем панель экспорта
         const exportSection = document.getElementById('exportSection');
         if (exportSection) exportSection.style.display = 'none';
@@ -568,6 +587,13 @@ class PalletTrackerApp {
         
         if (!this.isWorkingDay) {
             this.showNotification('Сначала начните рабочий день!', 'error');
+            return;
+        }
+        
+        // Проверка D-кода
+        if (!code) {
+            this.showNotification('Введите D-код паллета!', 'error');
+            if (palletCodeInput) palletCodeInput.focus();
             return;
         }
         
@@ -1219,9 +1245,23 @@ ${this.settings.specialistEmail}
         const startCheckBtn = document.getElementById('startPalletCheck');
         const endCheckBtn = document.getElementById('endPalletCheck');
         
+        const palletCodeInput = document.getElementById('palletCode');
+        const boxCountInput = document.getElementById('boxCount');
+        
+        const hasCode = palletCodeInput ? palletCodeInput.value.trim() !== '' : false;
+        const hasBoxCount = boxCountInput ? parseInt(boxCountInput.value) > 0 : false;
+        
         if (startWorkBtn) startWorkBtn.disabled = this.isWorkingDay;
         if (endWorkBtn) endWorkBtn.disabled = !this.isWorkingDay;
-        if (startCheckBtn) startCheckBtn.disabled = !this.isWorkingDay || this.currentPalletCheck !== null;
+        
+        // Кнопка "Начать проверку паллета" активна только когда есть рабочий день, нет активной проверки и заполнены оба поля
+        if (startCheckBtn) {
+            startCheckBtn.disabled = !this.isWorkingDay || 
+                                    this.currentPalletCheck !== null || 
+                                    !hasCode || 
+                                    !hasBoxCount;
+        }
+        
         if (endCheckBtn) endCheckBtn.disabled = this.currentPalletCheck === null;
     }
     
