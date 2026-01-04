@@ -135,6 +135,7 @@ class AuthManager {
 // Основной класс приложения
 class PalletTrackerApp {
     constructor() {
+        this.authManager = new AuthManager();
         this.workStartTime = null;
         this.workEndTime = null;
         this.isWorkingDay = false;
@@ -144,6 +145,16 @@ class PalletTrackerApp {
         this.todayChecks = [];
         this.allDaysHistory = {};
         this.tempErrors = [];
+        this.pendingConfirmCallback = null;
+        this.currentPalletStatsIndex = null;
+        
+        this.settings = {
+            rcName: 'Распределительный центр',
+            rcCode: 'РЦ-001',
+            specialistName: 'Иванов И.И.',
+            specialistEmail: 'ivanov@example.com',
+            targetPallets: 15
+        };
         
         console.log('Приложение создано');
     }
@@ -153,7 +164,9 @@ class PalletTrackerApp {
         this.setupDate();
         this.setupEventListeners();
         this.loadFromStorage();
+        this.loadSettings();
         this.updateDisplay();
+        this.updateErrorFormVisibility();
     }
     
     setupDate() {
@@ -178,14 +191,25 @@ class PalletTrackerApp {
             }
         });
         
+        // Кнопка настроек
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            this.showSettingsModal();
+        });
+        
         // Кнопки рабочего времени
         document.getElementById('startWorkDay').addEventListener('click', () => this.startWorkDay());
         document.getElementById('endWorkDay').addEventListener('click', () => this.showEndWorkDayModal());
+        document.getElementById('showHistory').addEventListener('click', () => this.showHistoryModal());
         document.getElementById('saveData').addEventListener('click', () => this.saveToStorage());
         
         // Кнопки проверки паллетов
         document.getElementById('startPalletCheck').addEventListener('click', () => this.startPalletCheck());
         document.getElementById('endPalletCheck').addEventListener('click', () => this.askAboutErrors());
+        
+        // Кнопки экспорта
+        document.getElementById('exportExcel').addEventListener('click', () => this.exportToExcel());
+        document.getElementById('generateAct').addEventListener('click', () => this.generateAct());
+        document.getElementById('generateLetter').addEventListener('click', () => this.generateLetter());
         
         // Ввод D-кода по Enter
         document.getElementById('palletCode').addEventListener('keypress', (e) => {
@@ -196,10 +220,116 @@ class PalletTrackerApp {
         document.getElementById('noErrors').addEventListener('click', () => this.endPalletCheckWithErrors([]));
         document.getElementById('yesErrors').addEventListener('click', () => this.showErrorForm());
         
+        // Форма ошибок
+        document.getElementById('addAnotherError').addEventListener('click', () => this.addError());
+        document.getElementById('finishErrors').addEventListener('click', () => this.finishErrors());
+        document.getElementById('cancelErrors').addEventListener('click', () => this.cancelErrors());
+        
+        // Обновление видимости полей в форме ошибок
+        document.querySelectorAll('input[name="errorType"]').forEach(radio => {
+            radio.addEventListener('change', () => this.updateErrorFormVisibility());
+        });
+        
+        // Настройки
+        document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
+        document.getElementById('closeSettings').addEventListener('click', () => this.hideModal('settingsModal'));
+        
         // Закрытие модальных окон
+        document.getElementById('closePalletStats').addEventListener('click', () => this.hideModal('palletStatsModal'));
+        document.getElementById('closeHistory').addEventListener('click', () => this.hideModal('historyModal'));
         document.getElementById('closeConfirmModal').addEventListener('click', () => this.hideModal('confirmModal'));
         document.getElementById('confirmYes').addEventListener('click', () => this.confirmAction());
         document.getElementById('confirmNo').addEventListener('click', () => this.hideModal('confirmModal'));
+        
+        // Клик по фону для закрытия модальных окон
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) this.hideModal(modal.id);
+            });
+        });
+        
+        // Обработчик клавиши Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.hideAllModals();
+            }
+        });
+    }
+    
+    showSettingsModal() {
+        // Загружаем текущие настройки в форму
+        document.getElementById('rcName').value = this.settings.rcName;
+        document.getElementById('rcCode').value = this.settings.rcCode;
+        document.getElementById('specialistName').value = this.settings.specialistName;
+        document.getElementById('specialistEmail').value = this.settings.specialistEmail;
+        document.getElementById('targetPallets').value = this.settings.targetPallets;
+        
+        this.showModal('settingsModal');
+    }
+    
+    saveSettings() {
+        this.settings = {
+            rcName: document.getElementById('rcName').value || 'Распределительный центр',
+            rcCode: document.getElementById('rcCode').value || 'РЦ-001',
+            specialistName: document.getElementById('specialistName').value || 'Иванов И.И.',
+            specialistEmail: document.getElementById('specialistEmail').value || 'ivanov@example.com',
+            targetPallets: parseInt(document.getElementById('targetPallets').value) || 15
+        };
+        
+        this.totalPalletsToCheck = this.settings.targetPallets;
+        
+        localStorage.setItem('palletTrackerSettings', JSON.stringify(this.settings));
+        this.hideModal('settingsModal');
+        this.updateDisplay();
+        this.showNotification('Настройки сохранены', 'success');
+    }
+    
+    loadSettings() {
+        try {
+            const saved = localStorage.getItem('palletTrackerSettings');
+            if (saved) {
+                this.settings = JSON.parse(saved);
+                this.totalPalletsToCheck = this.settings.targetPallets;
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки настроек:', e);
+        }
+    }
+    
+    // ============ МОДАЛЬНЫЕ ОКНА ============
+    showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
+        }
+    }
+    
+    hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+    
+    hideAllModals() {
+        document.querySelectorAll('.modal.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
+        this.pendingConfirmCallback = null;
+    }
+    
+    showConfirmModal(message, callback) {
+        this.pendingConfirmCallback = callback;
+        document.getElementById('confirmMessage').textContent = message;
+        this.showModal('confirmModal');
+    }
+    
+    confirmAction() {
+        if (this.pendingConfirmCallback) {
+            this.pendingConfirmCallback();
+        }
+        this.hideModal('confirmModal');
+        this.pendingConfirmCallback = null;
     }
     
     // ============ РАБОЧИЙ ДЕНЬ ============
@@ -210,6 +340,9 @@ class PalletTrackerApp {
         this.todayChecks = [];
         this.tempErrors = [];
         this.currentPalletCheck = null;
+        
+        // Скрываем панель экспорта
+        document.getElementById('exportSection').style.display = 'none';
         
         this.updateDisplay();
         this.enablePalletControls();
@@ -271,6 +404,8 @@ class PalletTrackerApp {
             return;
         }
         
+        this.tempErrors = [];
+        
         this.showConfirmModal(`Начать проверку паллета: ${code || 'Без D-кода'}\nКоличество коробов: ${boxCount}?`, () => {
             this.currentPalletCheck = {
                 code: code || `Без D-кода-${Date.now().toString().slice(-4)}`,
@@ -301,15 +436,125 @@ class PalletTrackerApp {
     
     showErrorForm() {
         this.hideModal('errorModal');
-        this.showNotification('Форма ошибок еще не реализована', 'info');
-        // Временно завершаем проверку без ошибок
-        setTimeout(() => this.endPalletCheckWithErrors([]), 1000);
+        this.resetErrorForm();
+        this.updateErrorFormVisibility();
+        this.showModal('errorDetailsModal');
+    }
+    
+    resetErrorForm() {
+        document.querySelector('input[name="errorType"][value="недостача"]').checked = true;
+        document.getElementById('productPLU').value = '';
+        document.getElementById('productName').value = '';
+        document.getElementById('productQuantity').value = '';
+        document.getElementById('productUnit').value = 'шт';
+        document.getElementById('errorComment').value = '';
+        document.getElementById('addedErrorsList').innerHTML = '';
+    }
+    
+    updateErrorFormVisibility() {
+        const errorType = document.querySelector('input[name="errorType"]:checked').value;
+        const productDetails = document.getElementById('productDetails');
+        
+        if (productDetails) {
+            if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
+                productDetails.style.display = 'block';
+            } else {
+                productDetails.style.display = 'none';
+            }
+        }
+    }
+    
+    addError() {
+        const errorType = document.querySelector('input[name="errorType"]:checked').value;
+        const comment = document.getElementById('errorComment').value.trim();
+        
+        if (!comment) {
+            this.showNotification('Введите комментарий', 'error');
+            return;
+        }
+        
+        const errorData = {
+            type: errorType,
+            comment: comment
+        };
+        
+        if (['недостача', 'излишки', 'качество товара'].includes(errorType)) {
+            errorData.plu = document.getElementById('productPLU').value;
+            errorData.productName = document.getElementById('productName').value;
+            errorData.quantity = document.getElementById('productQuantity').value;
+            errorData.unit = document.getElementById('productUnit').value;
+        }
+        
+        this.tempErrors.push(errorData);
+        this.updateAddedErrorsList();
+        
+        // Очистить форму для следующей ошибки
+        document.getElementById('productPLU').value = '';
+        document.getElementById('productName').value = '';
+        document.getElementById('productQuantity').value = '';
+        document.getElementById('errorComment').value = '';
+        
+        document.querySelector('input[name="errorType"][value="недостача"]').checked = true;
+        this.updateErrorFormVisibility();
+        
+        this.showNotification('Ошибка добавлена', 'success');
+    }
+    
+    updateAddedErrorsList() {
+        const list = document.getElementById('addedErrorsList');
+        list.innerHTML = '';
+        
+        this.tempErrors.forEach((error, index) => {
+            const li = document.createElement('li');
+            let text = `${index + 1}. ${error.type}`;
+            
+            if (error.productName) {
+                text += ` - ${error.productName}`;
+            }
+            if (error.comment) {
+                text += ` (${error.comment.length > 30 ? error.comment.substring(0, 30) + '...' : error.comment})`;
+            }
+            
+            li.innerHTML = `
+                <span>${text}</span>
+                <button class="remove-error" data-index="${index}">× Удалить</button>
+            `;
+            
+            list.appendChild(li);
+        });
+        
+        document.querySelectorAll('.remove-error').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.closest('.remove-error').dataset.index);
+                this.tempErrors.splice(index, 1);
+                this.updateAddedErrorsList();
+            });
+        });
+    }
+    
+    finishErrors() {
+        if (this.tempErrors.length === 0) {
+            this.showNotification('Не добавлено ни одной ошибки!', 'error');
+            return;
+        }
+        
+        this.endPalletCheckWithErrors([...this.tempErrors]);
+        this.hideModal('errorDetailsModal');
+    }
+    
+    cancelErrors() {
+        this.showConfirmModal('Отменить добавление ошибок?', () => {
+            this.tempErrors = [];
+            this.hideModal('errorDetailsModal');
+            this.askAboutErrors();
+        });
     }
     
     endPalletCheckWithErrors(errors) {
         if (!this.currentPalletCheck) return;
         
         this.hideModal('errorModal');
+        this.hideModal('errorDetailsModal');
         
         const endTime = new Date();
         const duration = Math.round((endTime - this.currentPalletCheck.start) / 1000);
@@ -335,16 +580,332 @@ class PalletTrackerApp {
             message += `\nОшибок: ${errors.length}`;
         }
         
-        if (this.palletsChecked === this.totalPalletsToCheck) {
-            message += '\n✅ Все 15 паллетов проверены!';
+        if (this.palletsChecked >= this.totalPalletsToCheck) {
+            message += '\n✅ Все паллеты проверены!';
             this.enableEndWorkDay();
+            this.showExportPanel();
         }
         
         this.showNotification(message, 'success');
         
         this.currentPalletCheck = null;
+        this.tempErrors = [];
         this.updateCurrentCheckDisplay();
         this.updateButtonStates();
+    }
+    
+    showExportPanel() {
+        document.getElementById('exportSection').style.display = 'block';
+    }
+    
+    // ============ СТАТИСТИКА ПАЛЛЕТА ============
+    showPalletStats(index) {
+        this.currentPalletStatsIndex = index;
+        const check = this.todayChecks[index];
+        
+        document.getElementById('palletStatsTitle').textContent = 
+            `Статистика паллета ${check.code} (№${index + 1})`;
+        
+        const statsInfo = document.getElementById('palletStatsInfo');
+        const errorsList = document.getElementById('palletErrorsList');
+        
+        const startTime = new Date(check.start);
+        const endTime = new Date(check.end);
+        
+        const startStr = startTime.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const endStr = endTime.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        statsInfo.innerHTML = `
+            <p><strong>D-код паллета:</strong> ${check.code}</p>
+            <p><strong>Количество коробов:</strong> ${check.boxCount || 0}</p>
+            <p><strong>Начало проверки:</strong> ${startStr}</p>
+            <p><strong>Окончание проверки:</strong> ${endStr}</p>
+            <p><strong>Длительность проверки:</strong> ${check.duration}</p>
+            <p><strong>Количество ошибок:</strong> ${check.errors ? check.errors.length : 0}</p>
+        `;
+        
+        if (!check.errors || check.errors.length === 0) {
+            errorsList.innerHTML = `
+                <div class="error-item">
+                    <h4>✅ Ошибок не обнаружено</h4>
+                </div>
+            `;
+        } else {
+            let errorsHtml = '';
+            
+            check.errors.forEach((error, i) => {
+                errorsHtml += `
+                    <div class="error-item">
+                        <h4>${i + 1}. ${error.type}</h4>
+                        <div class="error-details">
+                `;
+                
+                if (['недостача', 'излишки', 'качество товара'].includes(error.type)) {
+                    if (error.productName) {
+                        errorsHtml += `<p><strong>Товар:</strong> ${error.productName}</p>`;
+                    }
+                    if (error.plu) {
+                        errorsHtml += `<p><strong>PLU:</strong> ${error.plu}</p>`;
+                    }
+                    if (error.quantity) {
+                        errorsHtml += `<p><strong>Количество:</strong> ${error.quantity}${error.unit || ''}</p>`;
+                    }
+                }
+                
+                if (error.comment) {
+                    errorsHtml += `<p><strong>Комментарий:</strong> ${error.comment}</p>`;
+                }
+                
+                errorsHtml += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            errorsList.innerHTML = errorsHtml;
+        }
+        
+        this.showModal('palletStatsModal');
+    }
+    
+    // ============ ИСТОРИЯ ПРОВЕРОК ============
+    showHistoryModal() {
+        this.updateHistoryTable();
+        this.showModal('historyModal');
+    }
+    
+    updateHistoryTable() {
+        const tbody = document.getElementById('historyBody');
+        tbody.innerHTML = '';
+        
+        const dates = Object.keys(this.allDaysHistory).sort((a, b) => b.localeCompare(a));
+        
+        if (dates.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 30px;">
+                        <i class="fas fa-history" style="font-size: 2rem; color: #a0aec0; margin-bottom: 10px;"></i>
+                        <p>История проверок пуста</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        dates.forEach(dateStr => {
+            const dayData = this.allDaysHistory[dateStr];
+            
+            if (dayData.work_start) {
+                const date = new Date(dateStr);
+                const dateDisplay = date.toLocaleDateString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                
+                const startTime = new Date(dayData.work_start);
+                const startStr = startTime.toLocaleTimeString('ru-RU', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                let endStr = '-';
+                let totalTime = '-';
+                let pallets = dayData.pallets_checked || 0;
+                let totalBoxes = 0;
+                
+                if (dayData.checks) {
+                    totalBoxes = dayData.checks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+                }
+                
+                if (dayData.work_end) {
+                    const endTime = new Date(dayData.work_end);
+                    endStr = endTime.toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const duration = (endTime - startTime) / 1000 / 60;
+                    const hours = Math.floor(duration / 60);
+                    const minutes = Math.round(duration % 60);
+                    totalTime = `${hours}ч ${minutes}м`;
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${dateDisplay}</td>
+                    <td>${startStr}</td>
+                    <td>${endStr}</td>
+                    <td>${pallets}</td>
+                    <td>${totalBoxes}</td>
+                    <td>${totalTime}</td>
+                `;
+                
+                tbody.appendChild(row);
+            }
+        });
+    }
+    
+    // ============ ЭКСПОРТ ДАННЫХ ============
+    exportToExcel() {
+        if (this.todayChecks.length === 0) {
+            this.showNotification('Нет данных для экспорта', 'error');
+            return;
+        }
+        
+        try {
+            // Создаем данные для Excel
+            const wsData = [
+                ['Отчет о проверке паллетов', '', '', '', '', '', ''],
+                ['Дата:', new Date().toLocaleDateString('ru-RU'), '', '', '', '', ''],
+                ['РЦ:', this.settings.rcName, 'Код РЦ:', this.settings.rcCode, '', '', ''],
+                ['Специалист КРО:', this.settings.specialistName, 'Email:', this.settings.specialistEmail, '', '', ''],
+                ['', '', '', '', '', '', ''],
+                ['№', 'D-код', 'Коробов', 'Начало', 'Окончание', 'Длительность', 'Ошибки']
+            ];
+            
+            // Добавляем данные проверок
+            this.todayChecks.forEach((check, index) => {
+                const errorsCount = check.errors ? check.errors.length : 0;
+                wsData.push([
+                    index + 1,
+                    check.code,
+                    check.boxCount || 0,
+                    this.formatTime(new Date(check.start)),
+                    this.formatTime(new Date(check.end)),
+                    check.duration,
+                    errorsCount > 0 ? `${errorsCount} ошибок` : 'Нет'
+                ]);
+            });
+            
+            // Добавляем итоги
+            const totalPallets = this.todayChecks.length;
+            const totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+            const totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
+            
+            wsData.push(['', '', '', '', '', '', '']);
+            wsData.push(['ИТОГО:', totalPallets, 'паллетов', totalBoxes, 'коробов', totalErrors, 'ошибок']);
+            
+            // Создаем рабочий лист
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            
+            // Создаем книгу
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Проверки паллетов");
+            
+            // Генерируем имя файла
+            const fileName = `Проверка_паллетов_${this.settings.rcCode}_${new Date().toISOString().slice(0,10)}.xlsx`;
+            
+            // Сохраняем файл
+            XLSX.writeFile(wb, fileName);
+            
+            this.showNotification('Excel файл успешно скачан', 'success');
+        } catch (error) {
+            console.error('Ошибка при экспорте в Excel:', error);
+            this.showNotification('Ошибка при экспорте в Excel', 'error');
+        }
+    }
+    
+    generateAct() {
+        if (this.todayChecks.length === 0) {
+            this.showNotification('Нет данных для формирования акта', 'error');
+            return;
+        }
+        
+        const totalPallets = this.todayChecks.length;
+        const totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+        const totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
+        
+        const actContent = `
+            АКТ ПРОВЕРКИ ПАЛЛЕТОВ № ${new Date().getTime()}
+            
+            Дата составления: ${new Date().toLocaleDateString('ru-RU')}
+            
+            1. Распределительный центр: ${this.settings.rcName}
+            2. Код РЦ: ${this.settings.rcCode}
+            3. Специалист КРО: ${this.settings.specialistName}
+            
+            РЕЗУЛЬТАТЫ ПРОВЕРКИ:
+            
+            1. Всего проверено паллетов: ${totalPallets}
+            2. Всего проверено коробов: ${totalBoxes}
+            3. Обнаружено ошибок: ${totalErrors}
+            
+            Детали проверки:
+            ${this.todayChecks.map((check, index) => `
+            ${index + 1}. Паллет ${check.code}:
+               - Коробов: ${check.boxCount || 0}
+               - Время проверки: ${check.duration}
+               - Ошибок: ${check.errors ? check.errors.length : 0}
+            `).join('')}
+            
+            Подпись специалиста КРО: ____________________
+            
+            Дата: ${new Date().toLocaleDateString('ru-RU')}
+        `;
+        
+        this.downloadTextFile(`Акт_проверки_${this.settings.rcCode}_${new Date().toISOString().slice(0,10)}.txt`, actContent);
+        this.showNotification('Акт проверки сформирован', 'success');
+    }
+    
+    generateLetter() {
+        if (this.todayChecks.length === 0) {
+            this.showNotification('Нет данных для формирования письма', 'error');
+            return;
+        }
+        
+        const totalPallets = this.todayChecks.length;
+        const totalBoxes = this.todayChecks.reduce((sum, check) => sum + (check.boxCount || 0), 0);
+        const totalErrors = this.todayChecks.reduce((sum, check) => sum + (check.errors ? check.errors.length : 0), 0);
+        
+        const letterContent = `
+            Уважаемые коллеги,
+            
+            Направляем результаты проверки паллетов в РЦ ${this.settings.rcName} (${this.settings.rcCode}).
+            
+            Дата проверки: ${new Date().toLocaleDateString('ru-RU')}
+            Специалист КРО: ${this.settings.specialistName}
+            
+            Результаты проверки:
+            - Проверено паллетов: ${totalPallets}
+            - Проверено коробов: ${totalBoxes}
+            - Обнаружено ошибок: ${totalErrors}
+            
+            ${totalErrors > 0 ? 'Обнаружены следующие проблемы, требующие внимания:' : 'Ошибок не обнаружено. Все паллеты соответствуют требованиям.'}
+            
+            ${totalErrors > 0 ? this.todayChecks.filter(check => check.errors && check.errors.length > 0)
+                .map(check => `Паллет ${check.code}: ${check.errors.length} ошибок`)
+                .join('\n') : ''}
+            
+            Просим принять необходимые меры по устранению выявленных замечаний.
+            
+            С уважением,
+            ${this.settings.specialistName}
+            Специалист КРО
+            ${this.settings.specialistEmail}
+        `;
+        
+        this.downloadTextFile(`Письмо_результатов_${this.settings.rcCode}_${new Date().toISOString().slice(0,10)}.txt`, letterContent);
+        this.showNotification('Письмо результатов сформировано', 'success');
+    }
+    
+    downloadTextFile(filename, content) {
+        const element = document.createElement('a');
+        const file = new Blob([content], {type: 'text/plain'});
+        element.href = URL.createObjectURL(file);
+        element.download = filename;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
     }
     
     // ============ ОТОБРАЖЕНИЕ ДАННЫХ ============
@@ -476,13 +1037,21 @@ class PalletTrackerApp {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-small btn-info" onclick="alert('Статистика паллета ${check.code}')">
+                    <button class="btn btn-small btn-info view-stats-btn" data-index="${index}">
                         <i class="fas fa-chart-bar"></i> Статистика
                     </button>
                 </td>
             `;
             
             tbody.appendChild(row);
+        });
+        
+        // Добавить обработчики для кнопок просмотра статистики
+        document.querySelectorAll('.view-stats-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.closest('.view-stats-btn').dataset.index);
+                this.showPalletStats(index);
+            });
         });
     }
     
@@ -522,7 +1091,8 @@ class PalletTrackerApp {
             workEndTime: this.workEndTime,
             palletsChecked: this.palletsChecked,
             isWorkingDay: this.isWorkingDay,
-            currentPalletCheck: this.currentPalletCheck
+            currentPalletCheck: this.currentPalletCheck,
+            tempErrors: this.tempErrors
         };
         
         localStorage.setItem('palletTrackerData', JSON.stringify(data));
@@ -543,6 +1113,12 @@ class PalletTrackerApp {
             this.palletsChecked = data.palletsChecked || 0;
             this.isWorkingDay = data.isWorkingDay || false;
             this.currentPalletCheck = data.currentPalletCheck || null;
+            this.tempErrors = data.tempErrors || [];
+            
+            // Показываем панель экспорта если все паллеты проверены
+            if (this.palletsChecked >= this.totalPalletsToCheck && this.todayChecks.length > 0) {
+                this.showExportPanel();
+            }
             
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
@@ -557,28 +1133,6 @@ class PalletTrackerApp {
             minute: '2-digit',
             second: '2-digit'
         });
-    }
-    
-    showModal(modalId) {
-        document.getElementById(modalId).classList.add('active');
-    }
-    
-    hideModal(modalId) {
-        document.getElementById(modalId).classList.remove('active');
-    }
-    
-    showConfirmModal(message, callback) {
-        this.pendingConfirmCallback = callback;
-        document.getElementById('confirmMessage').textContent = message;
-        this.showModal('confirmModal');
-    }
-    
-    confirmAction() {
-        if (this.pendingConfirmCallback) {
-            this.pendingConfirmCallback();
-        }
-        this.hideModal('confirmModal');
-        this.pendingConfirmCallback = null;
     }
     
     showNotification(message, type = 'info') {
